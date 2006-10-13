@@ -7,12 +7,12 @@ Fusedaap works with versions of iTunes < 7.0. Fusedaap does NOT currently work w
 
 Installation
 ============
-The following packages are required inorder to use fusedaap.
+The following packages are required in order to use fusedaap.
 
 -A modern Linux kernel compiled with FUSE build in, or as a module.
 -The python interpreter.
 -Most recent python FUSE bindings from cvs <http://fuse.sourceforge.net/wiki/index.php/FusePython>:
-	At the time of writting, the python-fuse packages in debian sid and Ubuntu Breezy are old and do not work with fusedaap. I have not tested on any other distrobutions. Therefore you should use the latest cvs python-FUSE bindings. The easiest way is to download the development snapshot from <http://fuse.sourceforge.net/wiki/index.php/FusePython>.
+	At the time of writing, the python-fuse packages in debian sid and Ubuntu Breezy are old and do not work with fusedaap. I have not tested on any other distributions. Therefore you should use the latest cvs python-FUSE bindings. The easiest way is to download the development snapshot from <http://fuse.sourceforge.net/wiki/index.php/FusePython>.
 	
 -pythondaap module <http://jerakeen.org/code/PythonDaap/>:
 	-Pythondaap should also be built from the svn version (versions >=0.4 will not work with fusedaap). Get the latest version using the following command:
@@ -38,7 +38,7 @@ USAGE
 3)Mount fusedaap:
 	$ python fusedaap.py ./fusemount
 
-Thats it. As soon as it detects an accessible share that share will be added under the host dir.
+That's it. As soon as it detects an accessible share that share will be added under the host dir.
 
 
 To unmount fusedaap:
