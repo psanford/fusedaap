@@ -44,7 +44,7 @@ if not hasattr(fuse, '__version__'):
 daapZConfType = "_daap._tcp.local."
 
 #logging
-enableLogging = 1
+enableLogging = 0
 logger = logging.getLogger('fusedaap')
 hdlr = None
 if enableLogging:
@@ -190,6 +190,7 @@ class DaapFS(Fuse):
 		for r in ['.', '..'] +  dir.children.keys():
 			logger.info("readdir: %s"%r)
 			if r is ' ' or r is '' or r is None:
+				logger.info("readdir: passing %s"%r)
 				pass
 			else:
 				yield fuse.Direntry(r.encode(sys.getdefaultencoding(), "ignore"))
