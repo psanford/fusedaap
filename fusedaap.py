@@ -42,19 +42,18 @@ if not hasattr(fuse, '__version__'):
 		"your fuse-py doesn't know of fuse.__version__, probably it's too old."
 
 daapZConfType = "_daap._tcp.local."
+daapPort = 3689
 
-#logging
+#logging set using -d flag
 enableLogging = 0
 logger = logging.getLogger('fusedaap')
-hdlr = None
-if enableLogging:
+
+def enableLogging():
 	hdlr = logging.FileHandler('fd.log')
-else:
-	hdlr = logging.FileHandler('/dev/null')
-formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
-hdlr.setFormatter(formatter)
-logger.addHandler(hdlr)
-logger.setLevel(logging.DEBUG)
+	formatter = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+	hdlr.setFormatter(formatter)
+	logger.addHandler(hdlr)
+	logger.setLevel(logging.DEBUG)
 
 
 class Inode(fuse.Stat):
@@ -129,9 +128,8 @@ class DaapFS(Fuse):
 
 	def addHost(self, name, addr):
 		stripName = self.__cleanStripName(name)
-		hostdir = self._mkDir("/hosts/%s"% stripName)
 		address = str(socket.inet_ntoa(addr))
-		port = 3689
+		port = daapPort
 		client = DAAPClient()
 		tracks = []
 		try:
@@ -141,7 +139,6 @@ class DaapFS(Fuse):
 			tracks = database.tracks()
 		except Exception, e:
 			logger.info("Could not connect to %s: %s"%(stripName, e))
-			self._rmInode("/hosts/%s"% stripName)
 		songCount = 0
 		for song in tracks: 
 			songCount += 1
@@ -158,8 +155,6 @@ class DaapFS(Fuse):
 		if songCount > 0:
 			logger.info("!!!\n!!! :) !!! Connected to %s\n!!!"%stripName)
 			self.connectedHosts.append(name)
-		else:
-			self._rmInode("/hosts/%s"% stripName)
 		
 	def addService(self, zeroconf, type, name):
 		"""Listener method called when new zeroconf service is detected"""
@@ -202,7 +197,7 @@ class DaapFS(Fuse):
 		accmode = os.O_RDONLY | os.O_WRONLY | os.O_RDWR
 		if (flags & accmode) != os.O_RDONLY:
 			return -errno.EACCES
-
+	
 	def read(self, path, size, offset):
 		inode = self._fetchInode(path)
 		if inode is None:
@@ -331,6 +326,10 @@ def main():
 
 
 if __name__ == '__main__':
+	debugArgs = filter(lambda x: x == '-d', sys.argv)
+	print len(debugArgs)
+	if len(debugArgs):
+		enableLogging()
 	logger.info("=========START APP==========")
 	try:
 		main()
