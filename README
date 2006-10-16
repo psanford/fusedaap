@@ -1,9 +1,22 @@
+							README For Fusedaap
+						<http://fusedaap.sourceforge.net>
+
 Fusedaap is a read-only FUSE (Filesystem in USErspace) filesystem, allowing for browsing and accessing DAAP (iTunes) music shares. One possible use for fusedaap is to allow applications that don't have native support for DAAP to easily access music from DAAP shares. 
 
 Fusedaap is still experimental software. Use at your own risk. 
 
 Fusedaap works with versions of iTunes < 7.0. Fusedaap does NOT currently work with iTunes 7.x, because they changed some of the authentication process, and no one has reverse engineered it yet. As soon as someone figures out the changes I will upgrade fusedaap to support it. 
 
+
+Credit
+======
+Fusedaap uses the following libraries:
+-Fuse <http://fuse.sourceforge.net> 
+-Fuse python bindings <http://fuse.sourceforge.net/wiki/index.php/FusePython>
+-pythondaap <http://jerakeen.org/code/PythonDaap/>
+-pyzeroconf <http://www.sourceforge.net/projects/pyzeroconf>:
+	Fusedaap currently includes a modified version of the pyzeroconf module.
+-Peter Sanford is the author and copyright holder of fusedaap
 
 Installation
 ============
@@ -45,4 +58,6 @@ To unmount fusedaap:
 	$ fusermount -u ./fusemount
 	
 You might need to kill fusedaap.py if unmounting the directory did not end the program.
+
+
 
