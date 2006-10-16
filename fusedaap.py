@@ -120,14 +120,23 @@ class ServiceResolver(threading.Thread):
 class DaapFS(Fuse):
 	def __init__(self, *args, **kw):
 		Fuse.__init__(self, *args, **kw)
+		self.listeners = []
 		self.allHosts = []
 		self.connectedHosts = []
 		self.fsRoot = DirInode("/")
 		self.fsRoot.st_nlink = 2  #do I need this?
-		self.fsRoot.addChild(DirInode("hosts"))
+	
+	def addListener(self, listener):
+		"""Adds a listener that will be called on the following events:
+		
+		newHost(host, songs): a new hostname with a list of track objects
+		delHost(host): the host has disconnected
+		"""
+		self.listeners.append(listener)
+		
 
 	def addHost(self, name, addr):
-		stripName = self.__cleanStripName(name)
+		stripName = __cleanStripName(name)
 		address = str(socket.inet_ntoa(addr))
 		port = daapPort
 		client = DAAPClient()
@@ -139,22 +148,14 @@ class DaapFS(Fuse):
 			tracks = database.tracks()
 		except Exception, e:
 			logger.info("Could not connect to %s: %s"%(stripName, e))
-		songCount = 0
-		for song in tracks: 
-			songCount += 1
-			fileName = "%s-%s-%s.%s" % \
-				(song.artist, song.album, song.name, song.type)
-			fileName = self.__getCleanName(fileName)
-			putDir =self._mkDir("/hosts/%s/%s/%s"% \
-				(stripName, self.__getCleanName(song.artist),
-					self.__getCleanName(song.album)))
-			if not putDir.children.has_key(fileName):
-				songNode = SongInode(fileName, song.size, song=song)
-				putDir.addChild(songNode)
-				logger.info("Add %s/%s/%s"%(stripName, putDir.name, songNode.name))
-		if songCount > 0:
+		if len(tracks) > 0:
 			logger.info("!!!\n!!! :) !!! Connected to %s\n!!!"%stripName)
 			self.connectedHosts.append(name)
+			for listener in self.listeners:
+				listener.newHost(stripName, tracks)
+		else:
+			logger.info("failed to get find any tracks from %s"%stripName)
+			
 		
 	def addService(self, zeroconf, type, name):
 		"""Listener method called when new zeroconf service is detected"""
@@ -162,11 +163,12 @@ class DaapFS(Fuse):
 		ServiceResolver(zeroconf, Zeroconf.ServiceInfo(type, name), self, 3000)
 		
 	def removeService(self, zeroconf, type, name):
-		stripName = self.__cleanStripName(name)
+		stripName = __cleanStripName(name)
 		if name in self.connectedHosts:
 			self.connectedHosts.remove(name)
 			self.allHosts.remove(name)
-			self._rmInode("/hosts/%s"%stripName)
+			for listener in self.listeners:
+				listener.delHost(stripName)
 		else:
 			try:
 				self.allHosts.remove(name)
@@ -175,13 +177,13 @@ class DaapFS(Fuse):
 		logger.info("Service %s disconneted"%stripName)
 			
 	def getattr(self, path):
-		inode = self._fetchInode(path)
+		inode = self.fetchInode(path)
 		if inode is None:
 			return -errno.ENOENT
 		return inode
 
 	def readdir(self, path, offset):
-		dir = self._fetchInode(path)
+		dir = self.fetchInode(path)
 		for r in ['.', '..'] +  dir.children.keys():
 			logger.info("readdir: %s"%r)
 			if r is ' ' or r is '' or r is None:
@@ -191,7 +193,7 @@ class DaapFS(Fuse):
 				yield fuse.Direntry(r.encode(sys.getdefaultencoding(), "ignore"))
 
 	def open(self, path, flags):
-		inode = self._fetchInode(path)
+		inode = self.fetchInode(path)
 		if inode is None: 
 			return -errno.ENOENT
 		accmode = os.O_RDONLY | os.O_WRONLY | os.O_RDWR
@@ -199,7 +201,7 @@ class DaapFS(Fuse):
 			return -errno.EACCES
 	
 	def read(self, path, size, offset):
-		inode = self._fetchInode(path)
+		inode = self.fetchInode(path)
 		if inode is None:
 			return -errno.ENOENT
 		name = inode.name
@@ -215,7 +217,7 @@ class DaapFS(Fuse):
 			buf = ''
 		return buf
 
-	def _mkDir(self, path):
+	def mkDir(self, path):
 		curdir = self.fsRoot
 		folders = path.strip('/').split('/')
 		for f in folders:
@@ -231,7 +233,7 @@ class DaapFS(Fuse):
 				curdir = newdir
 		return curdir
 
-	def _rmInode(self, path):
+	def rmInode(self, path):
 		"""Removes the Inode if it exists"""
 		if path == '/':
 			e = OSError("Cannot remove / (root) directory.")
@@ -247,7 +249,7 @@ class DaapFS(Fuse):
 		except:
 			return None
 		
-	def _fetchInode(self, path):
+	def fetchInode(self, path):
 		"""Returns the Inode for the given path, or None if not found."""
 		if path == '/':
 			return self.fsRoot
@@ -260,17 +262,6 @@ class DaapFS(Fuse):
 		except:
 			return None
 
-	def __cleanStripName(self, name):
-		cleanName = self.__getCleanName(name)
-		return cleanName[:cleanName.index('.'+daapZConfType)]
-		
-	def __getCleanName(self, name):
-		if name is None:
-			return 'none'
-		return name.encode(sys.getdefaultencoding(), "ignore")\
-			.replace(' ', '_').replace(':', '_').replace('<', '_')\
-			.replace('>', '_').replace('|', '_').replace('?', '_')\
-			.replace('\\', '_').replace('@', '_')
 
 
 	def __getTrackResponseUsingHeaders(self, track, headers = {}):
@@ -313,13 +304,80 @@ class DaapFS(Fuse):
 		response    = daapclient.socket.getresponse()
 		return response;
 
+class HostHandler(object):
+	"""Manages files under /hosts dir"""
+	def __init__(self, daapFS):
+		self.daap = daapFS
+
+	def newHost(self, host, songs):
+		for song in songs: 
+			fileName = "%s-%s-%s.%s" % \
+				(song.artist, song.album, song.name, song.type)
+			fileName = __getCleanName(fileName)
+			putDir = self.daap.mkDir("/hosts/%s/%s/%s"% \
+				(stripName, __getCleanName(song.artist),
+					__getCleanName(song.album)))
+			if not putDir.children.has_key(fileName):
+				songNode = SongInode(fileName, song.size, song=song)
+				putDir.addChild(songNode)
+				logger.info("Add %s/%s/%s"%(stripName, putDir.name, songNode.name))
+	def delHost(self, host):
+		self.daap.rmInode("/hosts/%s"%host)
+
+
+class ArtistHandler(object):
+	"""Manages files under /artists dir"""
+	def __init__(self, daapFS):
+		self.hosts = {}
+		self.daap = daapFS
+
+	def newHost(self, host, songs):
+		sngList = []
+		for song in songs: 
+			fileName = "%s-%s-%s-%s.%s" % \
+				(song.artist, song.album, song.name, host, song.type)
+			fileName = __getCleanName(fileName)
+			dir = "/artists/%s/%s"% \
+				(__getCleanName(song.artist), __getCleanName(song.album))
+			
+			putDir = self.daap.mkDir(dir)
+			if not putDir.children.has_key(fileName):
+				songNode = SongInode(fileName, song.size, song=song)
+				putDir.addChild(songNode)
+				logger.info("Add %s/%s/%s"%\
+					(stripName, putDir.name, songNode.name))
+				sngList.append("%s/%s"%(dir, fileName))
+		self.hosts[host] = sngList
+
+	def delHost(self, host):
+		sngList = self.hosts[host]
+		if sngList is not None:
+			map(self.daap.rmInode, sngList)
+
 		
+def __cleanStripName(self, name):
+	"""Returns a filesystem friendly name for a host."""
+	cleanName = __getCleanName(name)
+	return cleanName[:cleanName.index('.'+daapZConfType)]
+	
+def __getCleanName(self, name):
+	"""Returns a filesystem friendly string."""
+	if name is None:
+		return 'none'
+	return name.encode(sys.getdefaultencoding(), "ignore")\
+		.replace(' ', '_').replace(':', '_').replace('<', '_')\
+		.replace('>', '_').replace('|', '_').replace('?', '_')\
+		.replace('\\', '_').replace('@', '_')
+
+
 def main():
 	usage="""Userspace hello example""" + Fuse.fusage
 	server = DaapFS()
 	server.fuse_args.setmod('foreground')
 	server.parse(errex=1)
 	server.multithreaded = True
+	server.addListener(HostHandler(server))
+	server.addListener(ArtistHandler(server))
 	r = Zeroconf.Zeroconf()
 	r.addServiceListener(daapZConfType, server)
 	server.main()
@@ -327,7 +385,6 @@ def main():
 
 if __name__ == '__main__':
 	debugArgs = filter(lambda x: x == '-d', sys.argv)
-	print len(debugArgs)
 	if len(debugArgs):
 		enableLogging()
 	logger.info("=========START APP==========")
