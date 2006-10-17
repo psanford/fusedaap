@@ -974,7 +974,6 @@ class ServiceBrowser(threading.Thread):
 		"""Callback invoked by Zeroconf when new information arrives.
 
 		Updates information required by browser in the Zeroconf cache."""
-		logger.info("In updateRecord")
 		if record.type == _TYPE_PTR and record.name == self.type:
 			expired = record.isExpired(now)
 			try:
@@ -1523,8 +1522,8 @@ class Zeroconf(object):
 		"""Sends an outgoing packet."""
 		# This is a quick test to see if we can parse the packets we generate
 		#temp = DNSIncoming(out.packet())
-		logger.info("PMS sending packet")
-		logger.info("%s %s %s"%(out.packet(), addr, port))
+		#logger.info("PMS sending packet")
+		#logger.info("%s %s %s"%(out.packet(), addr, port))
 		try:
 			bytes_sent = self.socket.sendto(out.packet(), 0, (addr, port))
 		except:

@@ -45,7 +45,7 @@ daapZConfType = "_daap._tcp.local."
 daapPort = 3689
 
 #logging set using -d flag
-enableLogging = 0
+enableLogging = 1
 logger = logging.getLogger('fusedaap')
 
 def enableLogging():
@@ -136,7 +136,7 @@ class DaapFS(Fuse):
 		
 
 	def addHost(self, name, addr):
-		stripName = __cleanStripName(name)
+		stripName = _cleanStripName(name)
 		address = str(socket.inet_ntoa(addr))
 		port = daapPort
 		client = DAAPClient()
@@ -163,7 +163,8 @@ class DaapFS(Fuse):
 		ServiceResolver(zeroconf, Zeroconf.ServiceInfo(type, name), self, 3000)
 		
 	def removeService(self, zeroconf, type, name):
-		stripName = __cleanStripName(name)
+		stripName = _cleanStripName(name)
+		stripName = _cleanStripName(name)
 		if name in self.connectedHosts:
 			self.connectedHosts.remove(name)
 			self.allHosts.remove(name)
@@ -313,14 +314,14 @@ class HostHandler(object):
 		for song in songs: 
 			fileName = "%s-%s-%s.%s" % \
 				(song.artist, song.album, song.name, song.type)
-			fileName = __getCleanName(fileName)
+			fileName = _getCleanName(fileName)
 			putDir = self.daap.mkDir("/hosts/%s/%s/%s"% \
-				(stripName, __getCleanName(song.artist),
-					__getCleanName(song.album)))
+				(host, _getCleanName(song.artist),
+					_getCleanName(song.album)))
 			if not putDir.children.has_key(fileName):
 				songNode = SongInode(fileName, song.size, song=song)
 				putDir.addChild(songNode)
-				logger.info("Add %s/%s/%s"%(stripName, putDir.name, songNode.name))
+				logger.info("Add %s/%s/%s"%(host, putDir.name, songNode.name))
 	def delHost(self, host):
 		self.daap.rmInode("/hosts/%s"%host)
 
@@ -336,31 +337,31 @@ class ArtistHandler(object):
 		for song in songs: 
 			fileName = "%s-%s-%s-%s.%s" % \
 				(song.artist, song.album, song.name, host, song.type)
-			fileName = __getCleanName(fileName)
+			fileName = _getCleanName(fileName)
 			dir = "/artists/%s/%s"% \
-				(__getCleanName(song.artist), __getCleanName(song.album))
+				(_getCleanName(song.artist), _getCleanName(song.album))
 			
 			putDir = self.daap.mkDir(dir)
 			if not putDir.children.has_key(fileName):
 				songNode = SongInode(fileName, song.size, song=song)
 				putDir.addChild(songNode)
 				logger.info("Add %s/%s/%s"%\
-					(stripName, putDir.name, songNode.name))
+					(host, putDir.name, songNode.name))
 				sngList.append("%s/%s"%(dir, fileName))
 		self.hosts[host] = sngList
 
 	def delHost(self, host):
-		sngList = self.hosts[host]
-		if sngList is not None:
+		if host in self.hosts:
+			sngList = self.hosts[host]
 			map(self.daap.rmInode, sngList)
 
 		
-def __cleanStripName(self, name):
+def _cleanStripName(name):
 	"""Returns a filesystem friendly name for a host."""
-	cleanName = __getCleanName(name)
+	cleanName = _getCleanName(name)
 	return cleanName[:cleanName.index('.'+daapZConfType)]
 	
-def __getCleanName(self, name):
+def _getCleanName(name):
 	"""Returns a filesystem friendly string."""
 	if name is None:
 		return 'none'
