@@ -306,7 +306,7 @@ class DaapFS(Fuse):
 		return response;
 
 class HostHandler(object):
-	"""Manages files under /hosts dir"""
+	"""Manages files under /hosts dir."""
 	def __init__(self, daapFS):
 		self.daap = daapFS
 
@@ -327,7 +327,7 @@ class HostHandler(object):
 
 
 class ArtistHandler(object):
-	"""Manages files under /artists dir"""
+	"""Manages files under /artists dir."""
 	def __init__(self, daapFS):
 		self.hosts = {}
 		self.daap = daapFS
@@ -336,7 +336,7 @@ class ArtistHandler(object):
 		sngList = []
 		for song in songs: 
 			fileName = "%s-%s-%s-%s.%s" % \
-				(song.artist, song.album, song.name, host, song.type)
+				(host, song.artist, song.album, song.name, song.type)
 			fileName = _getCleanName(fileName)
 			dir = "/artists/%s/%s"% \
 				(_getCleanName(song.artist), _getCleanName(song.album))
