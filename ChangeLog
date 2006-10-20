@@ -1,0 +1,9 @@
+fusedaap-0.1.1 20 Oct 2006
+	*Moved directory management into separate classes with callback hooks in
+	DaapFS
+	*Added ability to browse by Artist or by Host
+	*Cleaned up logging a bit, '-d' flag will enable logging to fd.log
+	*Added credits to README
+
+fusedaap-0.1 14 Oct 2006
+	*Initial release
