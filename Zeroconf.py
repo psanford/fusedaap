@@ -491,12 +491,16 @@ class DNSIncoming(object):
 		format = '!HH'
 		length = struct.calcsize(format)
 		for i in range(0, self.numQuestions):
-			name = self.readName()
-			info = struct.unpack(format, self.data[self.offset:self.offset+length])
-			self.offset += length
-			
-			question = DNSQuestion(name, info[0], info[1])
-			self.questions.append(question)
+			try:
+				name = self.readName()
+				info = struct.unpack(format, self.data[self.offset:self.offset+length])
+				self.offset += length
+				
+				question = DNSQuestion(name, info[0], info[1])
+				self.questions.append(question)
+			except:
+				logger.info("zconf readName error")
+				pass
 
 	def readInt(self):
 		"""Reads an integer from the packet"""
@@ -534,7 +538,11 @@ class DNSIncoming(object):
 		length = struct.calcsize(format)
 		n = self.numAnswers + self.numAuthorities + self.numAdditionals
 		for i in range(0, n):
-			domain = self.readName()
+			try:
+				domain = self.readName()
+			except:
+				logger.info("bad readName error")
+				pass
 			info = struct.unpack(format, self.data[self.offset:self.offset+length])
 			self.offset += length
 
@@ -1272,7 +1280,7 @@ class Zeroconf(object):
 			# the SO_REUSE* options have been set, so ignore it
 			#
 			pass
-		self.socket.setsockopt(socket.SOL_IP, socket.IP_MULTICAST_IF, socket.inet_aton(self.intf) + socket.inet_aton('0.0.0.0'))
+		#self.socket.setsockopt(socket.SOL_IP, socket.IP_MULTICAST_IF, socket.inet_aton(self.intf) + socket.inet_aton('0.0.0.0')) PMS
 		self.socket.setsockopt(socket.SOL_IP, socket.IP_ADD_MEMBERSHIP, socket.inet_aton(_MDNS_ADDR) + socket.inet_aton('0.0.0.0'))
 
 		self.listeners = []
