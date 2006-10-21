@@ -233,6 +233,45 @@ class DaapFS(Fuse):
 				curdir.addChild(newdir)
 				curdir = newdir
 		return curdir
+	
+	def rrmInode(self, path, rootNode=None):
+		"""
+		Like rmInode, but this will also remove any parent folders 
+		that become empty after the rm.
+
+		rootNode - dirNode in tree to start descending from, the 
+			path needs to only include items below this folder and no '/'
+			If no rootNode is supplied, will assume that path is a full path
+
+		will return 1 if everything below has been removed, 0 if 
+		there was something that was not removed
+		"""
+
+		folders = path.strip('/').split('/')
+		if rootNode == None:
+			if path == '/':
+				e = OSError("Cannot remove / (root) directory.")
+				e.errno = ENOENT
+				raise e
+			curdir = self.fsRoot
+			nextFolder = folders.pop(0)
+			self.rrmInode(path, curdir)
+		else:
+			curdir = rootNode
+			if len(folders) == 1 and folders[0] == '':
+				return True
+			else:
+				nextFolder = folders.pop(0)
+				if self.rrmInode('/'.join(folders), 
+				curdir.children[nextFolder]):
+					curdir.removeChild(nextFolder)
+					if len(curdir.children) == 0:
+						return True
+					else:
+						return False
+				else:
+					return False
+
 
 	def rmInode(self, path):
 		"""Removes the Inode if it exists"""
@@ -353,7 +392,7 @@ class ArtistHandler(object):
 	def delHost(self, host):
 		if host in self.hosts:
 			sngList = self.hosts[host]
-			map(self.daap.rmInode, sngList)
+			map(self.daap.rrmInode, sngList)
 
 		
 def _cleanStripName(name):
