@@ -184,8 +184,8 @@ class DaapFS(Fuse):
 		return inode
 
 	def readdir(self, path, offset):
-		dir = self.fetchInode(path)
-		for r in ['.', '..'] +  dir.children.keys():
+		directory = self.fetchInode(path)
+		for r in ['.', '..'] +  directory.children.keys():
 			logger.info("readdir: %s"%r)
 			if r is ' ' or r is '' or r is None:
 				logger.info("readdir: passing %s"%r)
@@ -226,7 +226,7 @@ class DaapFS(Fuse):
 				curdir = curdir.children[f]
 				if not isinstance(curdir, DirInode):
 					e = OSError("File %s is not a directory" % curdir)
-					e.errno = ENOENT
+					e.errno = errno.ENOENT
 					raise e
 			else:
 				newdir = DirInode(f)
@@ -251,7 +251,7 @@ class DaapFS(Fuse):
 		if rootNode == None:
 			if path == '/':
 				e = OSError("Cannot remove / (root) directory.")
-				e.errno = ENOENT
+				e.errno = errno.ENOENT
 				raise e
 			curdir = self.fsRoot
 			nextFolder = folders.pop(0)
@@ -277,7 +277,7 @@ class DaapFS(Fuse):
 		"""Removes the Inode if it exists"""
 		if path == '/':
 			e = OSError("Cannot remove / (root) directory.")
-			e.errno = ENOENT
+			e.errno = errno.ENOENT
 			raise e
 		curdir = self.fsRoot
 		folders = path.strip('/').split('/')
@@ -377,16 +377,16 @@ class ArtistHandler(object):
 			fileName = "%s-%s-%s-%s.%s" % \
 				(host, song.artist, song.album, song.name, song.type)
 			fileName = _getCleanName(fileName)
-			dir = "/artists/%s/%s"% \
+			directory = "/artists/%s/%s"% \
 				(_getCleanName(song.artist), _getCleanName(song.album))
 			
-			putDir = self.daap.mkDir(dir)
+			putDir = self.daap.mkDir(directory)
 			if not putDir.children.has_key(fileName):
 				songNode = SongInode(fileName, song.size, song=song)
 				putDir.addChild(songNode)
 				logger.info("Add %s/%s/%s"%\
 					(host, putDir.name, songNode.name))
-				sngList.append("%s/%s"%(dir, fileName))
+				sngList.append("%s/%s"%(directory, fileName))
 		self.hosts[host] = sngList
 
 	def delHost(self, host):
