@@ -1,3 +1,8 @@
+fusedaap-0.2 24 Oct 2006
+	*Experimental: fixed Zeroconf problem of not actually broadcasting 
+		any packets.
+	*Added rrmInode which will remove an Inode and any empty parent dirInode.
+	
 fusedaap-0.1.1 20 Oct 2006
 	*Moved directory management into separate classes with callback hooks in
 	DaapFS
