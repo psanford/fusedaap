@@ -26,7 +26,7 @@
 
 __author__ = "Peter Sanford"
 __email__ = "peter dot sanford at wheaton dot edu"
-__version__ = "0.1.1"
+__version__ = "0.2"
 
 import os, stat, errno, sys, socket, time
 import fuse
