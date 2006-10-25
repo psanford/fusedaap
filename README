@@ -20,7 +20,7 @@ Fusedaap uses the following libraries:
 
 Installation
 ============
-If you are installing on a debian based system, you will find these instructions useful: http://fusedaap.sourceforge.net/docs/sarge-install.php
+If you are installing on a debian based system, you will find these instructions useful: http://fusedaap.sourceforge.net/news/fusedaap-on-debian-etch/
 
 The following packages are required in order to use fusedaap.
 
