@@ -407,7 +407,7 @@ def _getCleanName(name):
 	return name.encode(sys.getdefaultencoding(), "ignore")\
 		.replace(' ', '_').replace(':', '_').replace('<', '_')\
 		.replace('>', '_').replace('|', '_').replace('?', '_')\
-		.replace('\\', '_').replace('@', '_')
+		.replace('\\', '_').replace('@', '_').replace('/', '_')
 
 
 def main():
