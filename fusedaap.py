@@ -45,7 +45,6 @@ daapZConfType = "_daap._tcp.local."
 daapPort = 3689
 
 #logging set using -d flag
-enableLogging = 1
 logger = logging.getLogger('fusedaap')
 
 def enableLogging():
@@ -180,6 +179,7 @@ class DaapFS(Fuse):
 	def getattr(self, path):
 		inode = self.fetchInode(path)
 		if inode is None:
+			logger.info("could not find inode: %s"%path)
 			return -errno.ENOENT
 		return inode
 
@@ -188,7 +188,7 @@ class DaapFS(Fuse):
 		for r in ['.', '..'] +  directory.children.keys():
 			logger.info("readdir: %s"%r)
 			if r is ' ' or r is '' or r is None:
-				logger.info("readdir: passing %s"%r)
+				logger.info("ERR readdir: read filename error: '%s'"%r)
 				pass
 			else:
 				yield fuse.Direntry(r.encode(sys.getdefaultencoding(), "ignore"))
