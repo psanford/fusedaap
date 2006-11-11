@@ -26,7 +26,7 @@
 
 __author__ = "Peter Sanford"
 __email__ = "peter dot sanford at wheaton dot edu"
-__version__ = "0.2"
+__version__ = "0.2.1"
 
 import os, stat, errno, sys, socket, time, signal
 import fuse
@@ -125,6 +125,7 @@ class ServiceResolver(threading.Thread):
 class DaapFS(Fuse):
 	def __init__(self, *args, **kw):
 		Fuse.__init__(self, *args, **kw)
+		self.__closed = False #if true, don't connect to any new hosts
 		self.listeners = []
 		self.allHosts = []
 		self.connectedSessions = {} # name -> DAAPSession, use to dissconnect
@@ -141,6 +142,8 @@ class DaapFS(Fuse):
 		
 
 	def addHost(self, name, addr):
+		if self.__closed:
+			return # do not add host if closed
 		stripName = _cleanStripName(name)
 		address = str(socket.inet_ntoa(addr))
 		port = daapPort
@@ -168,6 +171,8 @@ class DaapFS(Fuse):
 		
 	def addService(self, zeroconf, type, name):
 		"""Listener method called when new zeroconf service is detected"""
+		if self.__closed:
+			return #do NOT add service if closed
 		self.allHosts.append(name)
 		ServiceResolver(zeroconf, Zeroconf.ServiceInfo(type, name), self, 3000)
 		
@@ -318,6 +323,7 @@ class DaapFS(Fuse):
 
 	def closeAllConnections(self):
 		"""Closes all open DAAPSession connections."""
+		self.__closed = True
 		for name, session in self.connectedSessions.items():
 			try:
 				session.logout()
@@ -451,8 +457,8 @@ def main():
 		return
 	logger.info("closing zeroconf in main")
 	print "Disconnecting from services . . ."
-	server.closeAllConnections()
-	r.close()
+	r.close() # close zeroconf first so no new servers are connected to
+	server.closeAllConnections() 
 	
 
 

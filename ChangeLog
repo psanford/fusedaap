@@ -1,3 +1,11 @@
+fusedaap-0.2.1 11 Nov 2006
+	*Disconnects from all open DAAPSessions on exit.
+	*Close Zeroconf (ends Zeroconf's threads) on exit via
+	DaapFS.closeAllConnections.
+	*Added check so that once DaapFS.closeAllConnections is called, addService
+	and addHost will not add anything.
+	*Removed setDaemon on all threads.
+
 fusedaap-0.2 24 Oct 2006
 	*Experimental: fixed Zeroconf problem of not actually broadcasting 
 		any packets.
