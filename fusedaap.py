@@ -443,9 +443,14 @@ def main():
 	server.addListener(ArtistHandler(server))
 	r = Zeroconf.Zeroconf()
 	r.addServiceListener(daapZConfType, server)
-	server.main()
+	try:
+		server.main() # main loop
+	except:
+		print 'Exiting . . .'
+		r.close()
+		return
 	logger.info("closing zeroconf in main")
-	print "Disconnecting from services. . ."
+	print "Disconnecting from services . . ."
 	server.closeAllConnections()
 	r.close()
 	
