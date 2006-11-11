@@ -853,7 +853,7 @@ class Engine(threading.Thread):
 		self.readers = {} # maps socket to reader
 		self.timeout = 5
 		self.condition = threading.Condition()
-		self.setDaemon(True)#PMS
+		#self.setDaemon(True)#PMS
 		self.start()
 
 	def run(self):
@@ -939,7 +939,7 @@ class Reaper(threading.Thread):
 	def __init__(self, zeroconf):
 		threading.Thread.__init__(self)
 		self.zeroconf = zeroconf
-		self.setDaemon(True)#PMS
+		#self.setDaemon(True)#PMS
 		self.start()
 
 	def run(self):
@@ -975,7 +975,7 @@ class ServiceBrowser(threading.Thread):
 		self.done = 0
 
 		self.zeroconf.addListener(self, DNSQuestion(self.type, _TYPE_PTR, _CLASS_IN))
-		self.setDaemon(True)#PMS
+		#self.setDaemon(True)#PMS
 		self.start()
 
 	def updateRecord(self, zeroconf, now, record):
@@ -1530,8 +1530,6 @@ class Zeroconf(object):
 		"""Sends an outgoing packet."""
 		# This is a quick test to see if we can parse the packets we generate
 		#temp = DNSIncoming(out.packet())
-		#logger.info("PMS sending packet")
-		#logger.info("%s %s %s"%(out.packet(), addr, port))
 		try:
 			bytes_sent = self.socket.sendto(out.packet(), 0, (addr, port))
 		except:
@@ -1542,6 +1540,7 @@ class Zeroconf(object):
 	def close(self):
 		"""Ends the background threads, and prevent this instance from
 		servicing further queries."""
+		logger.info("Closing in zeroconf.");
 		if globals()['_GLOBAL_DONE'] == 0:
 			globals()['_GLOBAL_DONE'] = 1
 			self.notifyAll()

@@ -28,7 +28,7 @@ __author__ = "Peter Sanford"
 __email__ = "peter dot sanford at wheaton dot edu"
 __version__ = "0.2"
 
-import os, stat, errno, sys, socket, time
+import os, stat, errno, sys, socket, time, signal
 import fuse
 from fuse import Fuse
 from daap import DAAPClient
@@ -53,6 +53,7 @@ def enableLogging():
 	hdlr.setFormatter(formatter)
 	logger.addHandler(hdlr)
 	logger.setLevel(logging.DEBUG)
+
 
 
 class Inode(fuse.Stat):
@@ -98,14 +99,19 @@ class SongInode(Inode):
 class ServiceResolver(threading.Thread):
 	"""A class to wrap the Zeroconf.getServiceInfo() method into a thread.
 	If the service resolves, will call addHost() method in listener."""
-
+	
+	threadCounter = 0
+	
 	def __init__(self, zeroconf, serviceInfo, listener, timeout):
 		threading.Thread.__init__(self)
 		self.zeroconf = zeroconf
 		self.info = serviceInfo
 		self.timeout = timeout
 		self.listener = listener
-		self.setDaemon(True)
+		#self.setDaemon(True)
+		self.__class__.threadCounter += 1
+		logger.info("Total number of ServiceResolver threads created %d"
+			% threadCounter)
 		self.start()
 
 	def run(self):
@@ -121,7 +127,7 @@ class DaapFS(Fuse):
 		Fuse.__init__(self, *args, **kw)
 		self.listeners = []
 		self.allHosts = []
-		self.connectedHosts = []
+		self.connectedSessions = {} # name -> DAAPSession, use to dissconnect
 		self.fsRoot = DirInode("/")
 		self.fsRoot.st_nlink = 2  #do I need this?
 	
@@ -149,10 +155,14 @@ class DaapFS(Fuse):
 			logger.info("Could not connect to %s: %s"%(stripName, e))
 		if len(tracks) > 0:
 			logger.info("!!!\n!!! :) !!! Connected to %s\n!!!"%stripName)
-			self.connectedHosts.append(name)
+			self.connectedSessions[name] = session
 			for listener in self.listeners:
 				listener.newHost(stripName, tracks)
 		else:
+			try:
+				session.logout() #make sure we don't keep an open connection
+			except:
+				pass
 			logger.info("failed to get find any tracks from %s"%stripName)
 			
 		
@@ -164,8 +174,12 @@ class DaapFS(Fuse):
 	def removeService(self, zeroconf, type, name):
 		stripName = _cleanStripName(name)
 		stripName = _cleanStripName(name)
-		if name in self.connectedHosts:
-			self.connectedHosts.remove(name)
+		if self.connectedSessions.has_key(name):
+			try: 
+				self.connectedSessesions[name].logout()
+			except:
+				pass
+			del self.connectedSessions[name]
 			self.allHosts.remove(name)
 			for listener in self.listeners:
 				listener.delHost(stripName)
@@ -302,6 +316,15 @@ class DaapFS(Fuse):
 		except:
 			return None
 
+	def closeAllConnections(self):
+		"""Closes all open DAAPSession connections."""
+		for name, session in self.connectedSessions:
+			try:
+				session.logout()
+			except:
+				pass
+		self.connectedSessions.clear()
+
 
 
 	def __getTrackResponseUsingHeaders(self, track, headers = {}):
@@ -411,7 +434,7 @@ def _getCleanName(name):
 
 
 def main():
-	usage="""Userspace hello example""" + Fuse.fusage
+	usage = """Fusedaap :""" + Fuse.fusage
 	server = DaapFS()
 	server.fuse_args.setmod('foreground')
 	server.parse(errex=1)
@@ -421,6 +444,11 @@ def main():
 	r = Zeroconf.Zeroconf()
 	r.addServiceListener(daapZConfType, server)
 	server.main()
+	logger.info("closing zeroconf in main")
+	print "Disconnecting from services. . ."
+	server.closeAllConnections()
+	r.close()
+	
 
 
 if __name__ == '__main__':
