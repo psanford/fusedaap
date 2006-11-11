@@ -111,7 +111,7 @@ class ServiceResolver(threading.Thread):
 		#self.setDaemon(True)
 		self.__class__.threadCounter += 1
 		logger.info("Total number of ServiceResolver threads created %d"
-			% threadCounter)
+			% self.__class__.threadCounter)
 		self.start()
 
 	def run(self):
