@@ -318,7 +318,7 @@ class DaapFS(Fuse):
 
 	def closeAllConnections(self):
 		"""Closes all open DAAPSession connections."""
-		for name, session in self.connectedSessions:
+		for name, session in self.connectedSessions.items():
 			try:
 				session.logout()
 			except:
