@@ -369,7 +369,10 @@ class DaapFS(Fuse):
 		# Fernando Herrera for this one.
 		daapclient.socket.close()
 		daapclient.socket.connect()
-		daapclient.socket.request('GET', r, None, headers)
+		try:
+			daapclient.socket.request('GET', r, None, headers)
+		except CannotSendRequest, e:
+			logger.error("Error sending request : %s"%e);
 		response    = daapclient.socket.getresponse()
 		return response;
 
@@ -395,7 +398,14 @@ class HostHandler(object):
 
 
 class ArtistHandler(object):
-	"""Manages files under /artists dir."""
+	"""Manages files under /artists dir.
+	
+	Under directory structure is 
+		/artists/[artist_name]/[album_name]/[track](-host).[mp3|m4a]
+
+		If more than one host is sharing a song, then one of them will 
+		contain -host to seperate the two.
+	"""
 	def __init__(self, daapFS):
 		self.hosts = {}
 		self.daap = daapFS
@@ -403,12 +413,10 @@ class ArtistHandler(object):
 	def newHost(self, host, songs):
 		sngList = []
 		for song in songs: 
-			fileName = "%s-%s-%s-%s.%s" % \
-				(host, song.artist, song.album, song.name, song.type)
+			fileName = "%s.%s"%(song.name, song.type)
 			fileName = _getCleanName(fileName)
 			directory = "/artists/%s/%s"% \
 				(_getCleanName(song.artist), _getCleanName(song.album))
-			
 			putDir = self.daap.mkDir(directory)
 			if not putDir.children.has_key(fileName):
 				songNode = SongInode(fileName, song.size, song=song)
@@ -416,6 +424,16 @@ class ArtistHandler(object):
 				logger.info("Add %s/%s/%s"%\
 					(host, putDir.name, songNode.name))
 				sngList.append("%s/%s"%(directory, fileName))
+			else:
+				#song already here by other host 
+				fileName = "%s-%s.%s"%(song.name, host, song.type)
+				fileName = _getCleanName(fileName)
+				if not putDir.children.has_key(fileName):
+					songNode = SongInode(fileName, song.size, song=song)
+					putDir.addChild(songNode)
+					logger.info("Add %s/%s/%s"%\
+						(host, putDir.name, songNode.name))
+					sngList.append("%s/%s"%(directory, fileName))
 		self.hosts[host] = sngList
 
 	def delHost(self, host):
