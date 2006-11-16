@@ -30,8 +30,6 @@ __version__ = "0.2.1"
 
 import os, stat, errno, sys, socket, time, signal
 import fuse
-from fuse import Fuse
-from daap import DAAPClient
 import threading
 import logging
 import daap
@@ -122,9 +120,9 @@ class ServiceResolver(threading.Thread):
 			logger.info("Service discovery failed for %s"%self.info.name)
 		
 
-class DaapFS(Fuse):
+class DaapFS(fuse.Fuse):
 	def __init__(self, *args, **kw):
-		Fuse.__init__(self, *args, **kw)
+		fuse.Fuse.__init__(self, *args, **kw)
 		self.__closed = False #if true, don't connect to any new hosts
 		self.listeners = []
 		self.allHosts = []
@@ -147,7 +145,7 @@ class DaapFS(Fuse):
 		stripName = _cleanStripName(name)
 		address = str(socket.inet_ntoa(addr))
 		port = daapPort
-		client = DAAPClient()
+		client = daap.DAAPClient()
 		tracks = []
 		try:
 			client.connect (address, port)
@@ -343,7 +341,7 @@ class DaapFS(Fuse):
 	def __getResponseWithHeaders(self, daapclient, r, params = {}, gzip = 1, 
 			headers={}):
 		"""
-		Like DAAPClient._get_response() but with the ability to add other http headers.
+		Like daap.DAAPClient._get_response() but with the ability to add other http headers.
 		"""
 		#bump this for every track request
 		daapclient.request_id += 1
@@ -426,7 +424,7 @@ class ArtistHandler(object):
 				sngList.append("%s/%s"%(directory, fileName))
 			else:
 				#song already here by other host 
-				fileName = "%s-%s.%s"%(song.name, host, song.type)
+				fileName = "%s-%s.%s"%(host, song.name, song.type)
 				fileName = _getCleanName(fileName)
 				if not putDir.children.has_key(fileName):
 					songNode = SongInode(fileName, song.size, song=song)
@@ -438,7 +436,7 @@ class ArtistHandler(object):
 
 	def delHost(self, host):
 		if host in self.hosts:
-			sngList = self.hosts[host]
+			sngList = self.hosts[host] # all songs for host
 			map(self.daap.rrmInode, sngList)
 
 		
@@ -458,7 +456,7 @@ def _getCleanName(name):
 
 
 def main():
-	usage = """Fusedaap :""" + Fuse.fusage
+	usage = """Fusedaap :""" + fuse.Fuse.fusage
 	server = DaapFS()
 	server.fuse_args.setmod('foreground')
 	server.parse(errex=1)
