@@ -106,7 +106,6 @@ class ServiceResolver(threading.Thread):
 		self.info = serviceInfo
 		self.timeout = timeout
 		self.listener = listener
-		#self.setDaemon(True)
 		self.__class__.threadCounter += 1
 		logger.info("Total number of ServiceResolver threads created %d"
 			% self.__class__.threadCounter)
@@ -140,6 +139,9 @@ class DaapFS(fuse.Fuse):
 		
 
 	def addHost(self, name, addr):
+		"""Trys to connect to daap server. If able to connect, get song
+		listing.
+		"""
 		if self.__closed:
 			return # do not add host if closed
 		stripName = _cleanStripName(name)
@@ -168,13 +170,14 @@ class DaapFS(fuse.Fuse):
 			
 		
 	def addService(self, zeroconf, type, name):
-		"""Listener method called when new zeroconf service is detected"""
+		"""Listener method called when new zeroconf service is detected."""
 		if self.__closed:
 			return #do NOT add service if closed
 		self.allHosts.append(name)
 		ServiceResolver(zeroconf, Zeroconf.ServiceInfo(type, name), self, 3000)
 		
 	def removeService(self, zeroconf, type, name):
+		"""Listener method called when zeroconf service disconnects."""
 		stripName = _cleanStripName(name)
 		stripName = _cleanStripName(name)
 		if self.connectedSessions.has_key(name):
@@ -202,6 +205,8 @@ class DaapFS(fuse.Fuse):
 
 	def readdir(self, path, offset):
 		directory = self.fetchInode(path)
+		if directory == None:
+			directory = {} # ls will still work even after host has disconnected
 		for r in ['.', '..'] +  directory.children.keys():
 			logger.info("readdir: %s"%r)
 			if r is ' ' or r is '' or r is None:
@@ -291,7 +296,7 @@ class DaapFS(fuse.Fuse):
 
 
 	def rmInode(self, path):
-		"""Removes the Inode if it exists"""
+		"""Removes the Inode if it exists."""
 		if path == '/':
 			e = OSError("Cannot remove / (root) directory.")
 			e.errno = errno.ENOENT
@@ -446,7 +451,11 @@ def _cleanStripName(name):
 	return cleanName[:cleanName.index('.'+daapZConfType)]
 	
 def _getCleanName(name):
-	"""Returns a filesystem friendly string."""
+	"""Returns a filesystem friendly string.
+	
+	Replace the following ' ', ':', '<', '>', '|', '?',
+	'\\', '@', '/'
+	"""
 	if name is None:
 		return 'none'
 	return name.encode(sys.getdefaultencoding(), "ignore")\
