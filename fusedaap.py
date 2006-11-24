@@ -62,7 +62,7 @@ class Inode(fuse.Stat):
 		self.st_mode = permissions
 		self.st_ino = 0
 		self.st_dev = 0
-		self.st_nlink = 0
+		self.st_nlink = 1
 		self.st_uid = int(os.getuid())
 		self.st_gid = int(os.getgid())
 		now = int(time.time())
