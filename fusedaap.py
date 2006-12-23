@@ -126,8 +126,7 @@ class DaapFS(fuse.Fuse):
 		self.listeners = []
 		self.allHosts = []
 		self.connectedSessions = {} # name -> DAAPSession, use to dissconnect
-		self.fsRoot = DirInode("/")
-		self.fsRoot.st_nlink = 2  #do I need this?
+		self.DirMan = DirManager()
 	
 	def addListener(self, listener):
 		"""Adds a listener that will be called on the following events:
@@ -197,14 +196,14 @@ class DaapFS(fuse.Fuse):
 		logger.info("Service %s disconneted"%stripName)
 			
 	def getattr(self, path):
-		inode = self.fetchInode(path)
+		inode = self.DirMan.fetchInode(path)
 		if inode is None:
 			logger.info("could not find inode: %s"%path)
 			return -errno.ENOENT
 		return inode
 
 	def readdir(self, path, offset):
-		directory = self.fetchInode(path)
+		directory = self.DirMan.fetchInode(path)
 		if directory == None:
 			directory = {} # ls will still work even after host has disconnected
 		for r in ['.', '..'] +  directory.children.keys():
@@ -216,7 +215,7 @@ class DaapFS(fuse.Fuse):
 				yield fuse.Direntry(r.encode(sys.getdefaultencoding(), "ignore"))
 
 	def open(self, path, flags):
-		inode = self.fetchInode(path)
+		inode = self.DirMan.fetchInode(path)
 		if inode is None: 
 			return -errno.ENOENT
 		accmode = os.O_RDONLY | os.O_WRONLY | os.O_RDWR
@@ -224,7 +223,7 @@ class DaapFS(fuse.Fuse):
 			return -errno.EACCES
 	
 	def read(self, path, size, offset):
-		inode = self.fetchInode(path)
+		inode = self.DirMan.fetchInode(path)
 		if inode is None:
 			return -errno.ENOENT
 		name = inode.name
@@ -240,89 +239,6 @@ class DaapFS(fuse.Fuse):
 			buf = ''
 		return buf
 
-	def mkDir(self, path):
-		curdir = self.fsRoot
-		folders = path.strip('/').split('/')
-		for f in folders:
-			if curdir.children.has_key(f):
-				curdir = curdir.children[f]
-				if not isinstance(curdir, DirInode):
-					e = OSError("File %s is not a directory" % curdir)
-					e.errno = errno.ENOENT
-					raise e
-			else:
-				newdir = DirInode(f)
-				curdir.addChild(newdir)
-				curdir = newdir
-		return curdir
-	
-	def rrmInode(self, path, rootNode=None):
-		"""
-		Like rmInode, but this will also remove any parent folders 
-		that become empty after the rm.
-
-		rootNode - dirNode in tree to start descending from, the 
-			path needs to only include items below this folder and no '/'
-			If no rootNode is supplied, will assume that path is a full path
-
-		will return 1 if everything below has been removed, 0 if 
-		there was something that was not removed
-		"""
-
-		folders = path.strip('/').split('/')
-		if rootNode == None:
-			if path == '/':
-				e = OSError("Cannot remove / (root) directory.")
-				e.errno = errno.ENOENT
-				raise e
-			curdir = self.fsRoot
-			nextFolder = folders.pop(0)
-			self.rrmInode(path, curdir)
-		else:
-			curdir = rootNode
-			if len(folders) == 1 and folders[0] == '':
-				return True
-			else:
-				nextFolder = folders.pop(0)
-				if self.rrmInode('/'.join(folders), 
-				curdir.children[nextFolder]):
-					curdir.removeChild(nextFolder)
-					if len(curdir.children) == 0:
-						return True
-					else:
-						return False
-				else:
-					return False
-
-
-	def rmInode(self, path):
-		"""Removes the Inode if it exists."""
-		if path == '/':
-			e = OSError("Cannot remove / (root) directory.")
-			e.errno = errno.ENOENT
-			raise e
-		curdir = self.fsRoot
-		folders = path.strip('/').split('/')
-		inodeToDel = folders.pop()
-		try:
-			for f in folders:
-				curdir = curdir.children[f]
-			curdir.removeChild(inodeToDel)
-		except:
-			return None
-		
-	def fetchInode(self, path):
-		"""Returns the Inode for the given path, or None if not found."""
-		if path == '/':
-			return self.fsRoot
-		curdir = self.fsRoot
-		folders = path.strip('/').split('/')
-		try:
-			for f in folders:
-				curdir = curdir.children[f]
-			return curdir
-		except:
-			return None
 
 	def closeAllConnections(self):
 		"""Closes all open DAAPSession connections."""
@@ -377,9 +293,104 @@ class DaapFS(fuse.Fuse):
 		except CannotSendRequest, e:
 			logger.error("Error sending request : %s"%e);
 		response    = daapclient.socket.getresponse()
-		return response;
+		return response
 
-class HostHandler(object):
+
+class DirManager(object):
+	def __init__(self):
+		self.__fsRoot = DirInode("/")
+		self.__fsRoot.st_nlink = 2 #should this be 1?
+
+	def fetchInode(self, path):
+		"""Returns the Inode for the given path, or None if not found."""
+		if path == '/':
+			return self.__fsRoot
+		curdir = self.__fsRoot
+		folders = path.strip('/').split('/')
+		try:
+			for f in folders:
+				curdir = curdir.children[f]
+			return curdir
+		except:
+			return None
+
+	def mkDir(self, path):
+		"""Creates a directory with the path given and returns the DirInode.
+		
+			If a node already exits in dir structure, will throw
+			an OSError.
+		"""
+		curdir = self.__fsRoot
+		folders = path.strip('/').split('/')
+		for f in folders:
+			if curdir.children.has_key(f):
+				curdir = curdir.children[f]
+				if not isinstance(curdir, DirInode):
+					e = OSError("File %s is not a directory" % curdir)
+					e.errno = errno.ENOENT
+					raise e
+			else:
+				newdir = DirInode(f)
+				curdir.addChild(newdir)
+				curdir = newdir
+		return curdir
+	
+	
+	def rmInode(self, path):
+		"""Removes the Inode if it exists."""
+		if path == '/':
+			e = OSError("Cannot remove / (root) directory.")
+			e.errno = errno.ENOENT
+			raise e
+		curdir = self.__fsRoot
+		folders = path.strip('/').split('/')
+		inodeToDel = folders.pop()
+		try:
+			for f in folders:
+				curdir = curdir.children[f]
+			curdir.removeChild(inodeToDel)
+		except:
+			return None
+
+	def rrmInode(self, path, rootNode=None):
+		"""
+		Like rmInode, but this will also remove any parent folders 
+		that become empty after the rm.
+
+		rootNode - dirNode in tree to start descending from, the 
+			path needs to only include items below this folder and no '/'
+			If no rootNode is supplied, will assume that path is a full path
+
+		will return 1 if everything below has been removed, 0 if 
+		there was something that was not removed
+		"""
+
+		folders = path.strip('/').split('/')
+		if rootNode == None:
+			if path == '/':
+				e = OSError("Cannot remove / (root) directory.")
+				e.errno = errno.ENOENT
+				raise e
+			curdir = self.__fsRoot
+			nextFolder = folders.pop(0)
+			self.rrmInode(path, curdir)
+		else:
+			curdir = rootNode
+			if len(folders) == 1 and folders[0] == '':
+				return True
+			else:
+				nextFolder = folders.pop(0)
+				if self.rrmInode('/'.join(folders), 
+				curdir.children[nextFolder]):
+					curdir.removeChild(nextFolder)
+					if len(curdir.children) == 0:
+						return True
+					else:
+						return False
+				else:
+					return False
+
+class HostDirHandler(object):
 	"""Manages files under /hosts dir."""
 	def __init__(self, daapFS):
 		self.daap = daapFS
@@ -389,7 +400,7 @@ class HostHandler(object):
 			fileName = "%s-%s-%s.%s" % \
 				(song.artist, song.album, song.name, song.type)
 			fileName = _getCleanName(fileName)
-			putDir = self.daap.mkDir("/hosts/%s/%s/%s"% \
+			putDir = self.daap.DirMan.mkDir("/hosts/%s/%s/%s"% \
 				(host, _getCleanName(song.artist),
 					_getCleanName(song.album)))
 			if not putDir.children.has_key(fileName):
@@ -397,10 +408,11 @@ class HostHandler(object):
 				putDir.addChild(songNode)
 				logger.info("Add %s/%s/%s"%(host, putDir.name, songNode.name))
 	def delHost(self, host):
-		self.daap.rmInode("/hosts/%s"%host)
+		self.daap.DirMan.rrmInode("/hosts/%s"%host)
 
 
-class ArtistHandler(object):
+
+class ArtistDirHandler(object):
 	"""Manages files under /artists dir.
 	
 	Under directory structure is 
@@ -420,7 +432,7 @@ class ArtistHandler(object):
 			fileName = _getCleanName(fileName)
 			directory = "/artists/%s/%s"% \
 				(_getCleanName(song.artist), _getCleanName(song.album))
-			putDir = self.daap.mkDir(directory)
+			putDir = self.daap.DirMan.mkDir(directory)
 			if not putDir.children.has_key(fileName):
 				songNode = SongInode(fileName, song.size, song=song)
 				putDir.addChild(songNode)
@@ -442,7 +454,7 @@ class ArtistHandler(object):
 	def delHost(self, host):
 		if host in self.hosts:
 			sngList = self.hosts[host] # all songs for host
-			map(self.daap.rrmInode, sngList)
+			map(self.daap.DirMan.rrmInode, sngList)
 
 		
 def _cleanStripName(name):
@@ -470,8 +482,8 @@ def main():
 	server.fuse_args.setmod('foreground')
 	server.parse(errex=1)
 	server.multithreaded = True
-	server.addListener(HostHandler(server))
-	server.addListener(ArtistHandler(server))
+	server.addListener(HostDirHandler(server))
+	server.addListener(ArtistDirHandler(server))
 	r = Zeroconf.Zeroconf()
 	r.addServiceListener(daapZConfType, server)
 	try:
