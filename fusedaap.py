@@ -253,7 +253,10 @@ class DaapFS(fuse.Fuse):
 
 
 	def __getTrackResponseUsingHeaders(self, track, headers = {}):
-		return self.__getResponseWithHeaders(track.database.session.connection, 
+		daapclient = track.database.session.connection
+		#bump this for every track request
+		daapclient.request_id += 1
+		return self.__getResponseWithHeaders(daapclient, 
 			"/databases/%s/items/%s.%s"% \
 			(track.database.id, track.id, track.type),
 			{'session-id':track.database.session.sessionid}, gzip = 0,
@@ -264,8 +267,6 @@ class DaapFS(fuse.Fuse):
 		"""
 		Like daap.DAAPClient._get_response() but with the ability to add other http headers.
 		"""
-		#bump this for every track request
-		daapclient.request_id += 1
 		if params:
 			l = ['%s=%s' % (k, v) for k, v in params.iteritems()]
 			r = '%s?%s' % (r, '&'.join(l))
@@ -273,8 +274,7 @@ class DaapFS(fuse.Fuse):
 			'Client-DAAP-Version': '3.0',
 			'Client-DAAP-Access-Index': '2',
 		}
-		for k,v in hdrs.items():
-			headers[k] = v
+		headers.update(hdrs)
 		if gzip: headers['Accept-encoding'] = 'gzip'
 		if daapclient.request_id > 0:
 			headers[ 'Client-DAAP-Request-ID' ] = daapclient.request_id
