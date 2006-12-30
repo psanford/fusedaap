@@ -126,7 +126,7 @@ class DaapFS(fuse.Fuse):
 		self.listeners = []
 		self.allHosts = []
 		self.connectedSessions = {} # name -> DAAPSession, use to dissconnect
-		self.DirMan = DirManager()
+		self.dirSup = DirSupervisor()
 	
 	def addListener(self, listener):
 		"""Adds a listener that will be called on the following events:
@@ -196,14 +196,14 @@ class DaapFS(fuse.Fuse):
 		logger.info("Service %s disconneted"%stripName)
 			
 	def getattr(self, path):
-		inode = self.DirMan.fetchInode(path)
+		inode = self.dirSup.fetchInode(path)
 		if inode is None:
 			logger.info("could not find inode: %s"%path)
 			return -errno.ENOENT
 		return inode
 
 	def readdir(self, path, offset):
-		directory = self.DirMan.fetchInode(path)
+		directory = self.dirSup.fetchInode(path)
 		if directory == None:
 			directory = {} # ls will still work even after host has disconnected
 		for r in ['.', '..'] +  directory.children.keys():
@@ -215,7 +215,7 @@ class DaapFS(fuse.Fuse):
 				yield fuse.Direntry(r.encode(sys.getdefaultencoding(), "ignore"))
 
 	def open(self, path, flags):
-		inode = self.DirMan.fetchInode(path)
+		inode = self.dirSup.fetchInode(path)
 		if inode is None: 
 			return -errno.ENOENT
 		accmode = os.O_RDONLY | os.O_WRONLY | os.O_RDWR
@@ -223,7 +223,7 @@ class DaapFS(fuse.Fuse):
 			return -errno.EACCES
 	
 	def read(self, path, size, offset):
-		inode = self.DirMan.fetchInode(path)
+		inode = self.dirSup.fetchInode(path)
 		if inode is None:
 			return -errno.ENOENT
 		name = inode.name
@@ -295,14 +295,60 @@ class DaapFS(fuse.Fuse):
 		response    = daapclient.socket.getresponse()
 		return response
 
+class DirSupervisor(object):
+	"""
+	This class manages the internal file tree for fusedaap. 
+	
+	The primary role of this class is to control the creation of 
+	LocalDirManager objects. 
 
-class DirManager(object):
+	DirSupervisor also supports fetching Inodes.
+	"""
 	def __init__(self):
 		self.__fsRoot = DirInode("/")
 		self.__fsRoot.st_nlink = 2 #should this be 1?
 
+	def requestDirLease(self, path):
+		"""Returns a LocalDirmanager if sucessful, 
+		otherwise throws an exception.
+		"""
+		localName = path.strip('/').split('/').pop()
+		if path == "/":
+			raise Exception("Cannot lease out root dir.")
+		elif len(path.strip("/").split("/")) != 1:
+			raise Exception("Only first level leases are valid.")
+		elif self.__fsRoot.children.has_key(localName):
+			raise Exception("This directory is already leased out.")
+		else:
+			localRoot = DirInode(localName)
+			self.__fsRoot.addChild(localRoot)
+			return LocalDirManager(localRoot)
+	
 	def fetchInode(self, path):
 		"""Returns the Inode for the given path, or None if not found."""
+		if path == '/':
+			return self.__fsRoot
+		curdir = self.__fsRoot
+		folders = path.strip('/').split('/')
+		try:
+			for f in folders:
+				curdir = curdir.children[f]
+			return curdir
+		except:
+			return None
+
+
+
+class LocalDirManager(object):
+	def __init__(self, localDirRoot):
+		self.__fsRoot = localDirRoot
+
+	def fetchInode(self, path):
+		"""Returns the Inode for the given path, or None if not found.
+		
+		The path variable is the local path, i.e. '/' is the local root folder,
+		not the global root.
+		"""
 		if path == '/':
 			return self.__fsRoot
 		curdir = self.__fsRoot
@@ -319,6 +365,9 @@ class DirManager(object):
 		
 			If a node already exits in dir structure, will throw
 			an OSError.
+
+		The path variable is the local path, i.e. '/' is the local root folder,
+		not the global root.
 		"""
 		curdir = self.__fsRoot
 		folders = path.strip('/').split('/')
@@ -337,7 +386,11 @@ class DirManager(object):
 	
 	
 	def rmInode(self, path):
-		"""Removes the Inode if it exists."""
+		"""Removes the Inode if it exists.
+
+		The path variable is the local path, i.e. '/' is the local root folder,
+		not the global root.
+		"""
 		if path == '/':
 			e = OSError("Cannot remove / (root) directory.")
 			e.errno = errno.ENOENT
@@ -363,6 +416,10 @@ class DirManager(object):
 
 		will return 1 if everything below has been removed, 0 if 
 		there was something that was not removed
+
+
+		The path variable is the local path, i.e. '/' is the local root folder,
+		not the global root.
 		"""
 
 		folders = path.strip('/').split('/')
@@ -392,15 +449,15 @@ class DirManager(object):
 
 class HostDirHandler(object):
 	"""Manages files under /hosts dir."""
-	def __init__(self, daapFS):
-		self.daap = daapFS
+	def __init__(self, directoryManager):
+		self.dirMan = directoryManager
 
 	def newHost(self, host, songs):
 		for song in songs: 
 			fileName = "%s-%s-%s.%s" % \
 				(song.artist, song.album, song.name, song.type)
 			fileName = _getCleanName(fileName)
-			putDir = self.daap.DirMan.mkDir("/hosts/%s/%s/%s"% \
+			putDir = self.dirMan.mkDir("/%s/%s/%s"% \
 				(host, _getCleanName(song.artist),
 					_getCleanName(song.album)))
 			if not putDir.children.has_key(fileName):
@@ -408,7 +465,7 @@ class HostDirHandler(object):
 				putDir.addChild(songNode)
 				logger.info("Add %s/%s/%s"%(host, putDir.name, songNode.name))
 	def delHost(self, host):
-		self.daap.DirMan.rrmInode("/hosts/%s"%host)
+		self.dirMan.rrmInode("/%s"%host)
 
 
 
@@ -421,22 +478,22 @@ class ArtistDirHandler(object):
 		If more than one host is sharing a song, then one of them will 
 		contain -host to seperate the two.
 	"""
-	def __init__(self, daapFS):
+	def __init__(self, directoryManager):
 		self.hosts = {}
-		self.daap = daapFS
+		self.dirMan = directoryManager
 
 	def newHost(self, host, songs):
 		sngList = []
 		for song in songs: 
 			fileName = "%s.%s"%(song.name, song.type)
 			fileName = _getCleanName(fileName)
-			directory = "/artists/%s/%s"% \
+			directory = "/%s/%s"% \
 				(_getCleanName(song.artist), _getCleanName(song.album))
-			putDir = self.daap.DirMan.mkDir(directory)
+			putDir = self.dirMan.mkDir(directory)
 			if not putDir.children.has_key(fileName):
 				songNode = SongInode(fileName, song.size, song=song)
 				putDir.addChild(songNode)
-				logger.info("Add %s/%s/%s"%\
+				logger.info("art: Add %s/%s/%s"%\
 					(host, putDir.name, songNode.name))
 				sngList.append("%s/%s"%(directory, fileName))
 			else:
@@ -454,7 +511,7 @@ class ArtistDirHandler(object):
 	def delHost(self, host):
 		if host in self.hosts:
 			sngList = self.hosts[host] # all songs for host
-			map(self.daap.DirMan.rrmInode, sngList)
+			map(self.dirMan.rrmInode, sngList)
 
 		
 def _cleanStripName(name):
@@ -482,8 +539,10 @@ def main():
 	server.fuse_args.setmod('foreground')
 	server.parse(errex=1)
 	server.multithreaded = True
-	server.addListener(HostDirHandler(server))
-	server.addListener(ArtistDirHandler(server))
+	hdh = HostDirHandler(server.dirSup.requestDirLease("/hosts"))
+	server.addListener(hdh)
+	adh = ArtistDirHandler(server.dirSup.requestDirLease("/artists"))
+	server.addListener(adh)
 	r = Zeroconf.Zeroconf()
 	r.addServiceListener(daapZConfType, server)
 	try:

@@ -66,130 +66,176 @@ class Test_cleanStripName(unittest.TestCase):
 		self.assertRaises(ValueError, fusedaap._cleanStripName, "no daap ext.")
 	
 
-class Test_DirManager_fetchInode(unittest.TestCase):
+class Test_LocalDirManager_fetchInode(unittest.TestCase):
 	
 	def setUp(self):
-		self.dirMan = fusedaap.DirManager()
-		self.dirMan.fsRoot = self.dirMan.fetchInode('/')#bc __fsRoot is private
-		self.emptyDir = fusedaap.DirInode('')
-		self.emptySong = fusedaap.SongInode('', 5)
+		self.dirLocalMan = fusedaap.LocalDirManager(fusedaap.DirInode('testDir'))
+		self.dirLocalMan.fsRoot = self.dirLocalMan.fetchInode('/')#bc __fsRoot is private
 		self.firstLevel = ( 'dir1', 'dir2', 'dir3')
 		self.secondLevel1 = ( 'dir1a' , 'dir1b')
 		self.secondLevel2 = ( 'dir2a',)
 		self.thirdLevel1a = ( 'songFile1', 'songFile2')
 
-		self.dirPaths = ('/', '/dir1', '/dir2', '/dir1/dir1a', '/dir1/dir1b',
+		self.dirPaths = ('/dir1', '/dir2', '/dir1/dir1a', '/dir1/dir1b',
 					'/dir2/dir2a', '/dir2/dir2a')
 
 		self.songPaths = ('/dir1/dir1a/songFile1', '/dir1/dir1a/songFile2')
 
 		for f in self.firstLevel:
-			self.dirMan.fsRoot.addChild(fusedaap.DirInode(f))
+			self.dirLocalMan.fsRoot.addChild(fusedaap.DirInode(f))
 		for f in self.secondLevel1:
-			self.dirMan.fsRoot.children['dir1'].addChild(fusedaap.DirInode(f))
+			self.dirLocalMan.fsRoot.children['dir1'].addChild(fusedaap.DirInode(f))
 		for f in self.secondLevel2:
-			self.dirMan.fsRoot.children['dir2'].addChild(fusedaap.DirInode(f))
+			self.dirLocalMan.fsRoot.children['dir2'].addChild(fusedaap.DirInode(f))
 		for s in self.thirdLevel1a:
-			self.dirMan.fsRoot.children['dir1'].children['dir1a'].addChild(fusedaap.SongInode(s, 5))
+			self.dirLocalMan.fsRoot.children['dir1'].children['dir1a'].addChild(fusedaap.SongInode(s, 5))
 
 
 	def tearDown(self):
-		self.dirMan = None
+		self.dirLocalMan = None
 
 	def test_fetchInodeGoodInput(self):
-		""""DirManager.fetchInode should return inodes that exist in tree."""
+		""""LocalDirManager.fetchInode should return inodes that exist in tree."""
 		for dir in self.dirPaths:
-			node = self.dirMan.fetchInode(dir)
-			self.assertEqual(type(node), type(self.emptyDir))
+			node = self.dirLocalMan.fetchInode(dir)
+			self.assertTrue(isinstance(node, fusedaap.DirInode))
 			self.assertTrue(dir.endswith(node.name))
 		for s in self.songPaths:
-			node = self.dirMan.fetchInode(s)
-			self.assertEqual(type(node), type(self.emptySong))
+			node = self.dirLocalMan.fetchInode(s)
+			self.assertTrue(isinstance(node, fusedaap.SongInode))
 			self.assertTrue(s.endswith(node.name))
 
 	def test_fetchInodeMissingNode(self):
-		"""DirManager.fetchInode should return None if inode does not exist."""
-		self.dirMan = fusedaap.DirManager()
+		"""LocalDirManager.fetchInode should return None if inode does not exist."""
+		self.dirLocalMan = fusedaap.LocalDirManager(fusedaap.DirInode('testDir'))
 		for f in self.dirPaths[1:]:
-			self.assertEquals(None, self.dirMan.fetchInode(f))
+			self.assertEquals(None, self.dirLocalMan.fetchInode(f))
 	
 	def test_fetchDirNodeWithEndingSlash(self):
-		"DirManager.fetchInode should strip ending slashes from the path."""
+		"LocalDirManager.fetchInode should strip ending slashes from the path."""
 		for f in self.dirPaths[1:]:
 			dir = '%s/'%f
-			node = self.dirMan.fetchInode(dir)
-			self.assertEquals(type(self.emptyDir), type(node))
+			node = self.dirLocalMan.fetchInode(dir)
+			self.assertTrue(isinstance(node, fusedaap.DirInode))
 			self.assertTrue(f.endswith(node.name))
 
 
-class Test_DirManager_mkDir(unittest.TestCase):
+class Test_LocalDirManager_mkDir(unittest.TestCase):
 	def setUp(self):
-		self.dirMan = fusedaap.DirManager()
-		self.emptyDir = fusedaap.DirInode('')
-		self.emptySong = fusedaap.SongInode('', 5)
+		self.dirLocalMan = fusedaap.LocalDirManager(fusedaap.DirInode('testDir'))
 		self.songPaths = ('/dir1/dir1a/songFile1', '/dir1/dir1a/songFile2')
 		self.dirPaths = ('/dir2', '/dir1/dir1a', '/dir1/dir1b', '/dir1'
 					'/dir2/dir2a', '/dir2/dir2a')
 
 	def test_mkDirGoodInput(self):
-		"""DirManager.mkDirGoodInput should create known directories with a known
+		"""LocalDirManager.mkDirGoodInput should create known directories with a known
 		input."""
-		map(self.dirMan.mkDir, self.dirPaths)
+		map(self.dirLocalMan.mkDir, self.dirPaths)
 		for f in self.dirPaths:
-			node = self.dirMan.fetchInode(f)
-			self.assertEqual(type(node), type(self.emptyDir))
+			node = self.dirLocalMan.fetchInode(f)
+			self.assertTrue(isinstance(node, fusedaap.DirInode))
 			self.assertTrue(f.endswith(node.name))
 
 	def test_mkDirOverSongNode(self):
-		"""DirManager.mkDir should throw an exception if it tries to create a folder where a filenode (SongNode) exists."""
-		rootNode = self.dirMan.fetchInode('/')
+		"""LocalDirManager.mkDir should throw an exception if it tries to create a folder where a filenode (SongNode) exists."""
+		rootNode = self.dirLocalMan.fetchInode('/')
 		rootNode.addChild(fusedaap.SongInode("song", 1234))
-		self.assertRaises(Exception, self.dirMan.mkDir, "song")
-		self.assertEqual(type(self.emptySong), 
-			type(self.dirMan.fetchInode('/song')))
+		self.assertRaises(Exception, self.dirLocalMan.mkDir, "song")
+		self.assertTrue(isinstance(self.dirLocalMan.fetchInode('/song'), 
+			fusedaap.SongInode))
 
-class Test_DirManager_rmInode(unittest.TestCase):
+class Test_LocalDirManager_rmInode(unittest.TestCase):
 	def setUp(self):
-		self.dirMan = fusedaap.DirManager()
-		self.emptyDir = fusedaap.DirInode('')
-		self.emptySong = fusedaap.SongInode('', 5)
+		self.dirLocalMan = fusedaap.LocalDirManager(fusedaap.DirInode('testDir'))
 		self.songPaths = ('/dir1/dir1a/songFile1', '/dir1/dir1a/songFile2')
 		self.dirPaths = ('/dir2', '/dir1/dir1a', '/dir1/dir1b', '/dir1'
 					'/dir2/dir2a', '/dir2/dir2a')
 
 	def test_rmInodeGoodInput(self):
-		"""DirManager.rmInode should remove inodes that exist."""
-		map(self.dirMan.mkDir, self.dirPaths)
-		self.dirMan.rmInode('/dir2')
-		self.assertEqual(None, self.dirMan.fetchInode('/dir2'))
-		self.assertEqual(None, self.dirMan.fetchInode('/dir2/dir2a'))
-		self.assertEqual(type(self.emptyDir), 
-			type(self.dirMan.fetchInode('/')))
-		self.assertEqual(type(self.emptyDir), 
-			type(self.dirMan.fetchInode('/dir1/dir1a')))
+		"""LocalDirManager.rmInode should remove inodes that exist."""
+		map(self.dirLocalMan.mkDir, self.dirPaths)
+		self.dirLocalMan.rmInode('/dir2')
+		self.assertEqual(None, self.dirLocalMan.fetchInode('/dir2'))
+		self.assertEqual(None, self.dirLocalMan.fetchInode('/dir2/dir2a'))
+		self.assertTrue(
+			isinstance(self.dirLocalMan.fetchInode('/'), fusedaap.DirInode))
+		self.assertTrue(isinstance(self.dirLocalMan.fetchInode('/dir1/dir1a'), 
+			fusedaap.DirInode))
 
 	def test_rmInodeRoot(self):
-		"""DirManager.rmInode should throw an OSError if you try to remove
+		"""LocalDirManager.rmInode should throw an OSError if you try to remove
 		   the '/' node."""
-		self.assertRaises(OSError, self.dirMan.rmInode, '/')
+		self.assertRaises(OSError, self.dirLocalMan.rmInode, '/')
 
 	
-class Test_DirManager_rrmInode(unittest.TestCase):
+class Test_LocalDirManager_rrmInode(unittest.TestCase):
 	def setUp(self):
-		self.dirMan = fusedaap.DirManager()
-		self.emptyDir = fusedaap.DirInode('')
-		self.emptySong = fusedaap.SongInode('', 5)
+		self.dirLocalMan = fusedaap.LocalDirManager(fusedaap.DirInode('testDir'))
 		self.dirPaths = ('/dir2', '/dir1/dir1a', '/dir1', 
 			'/dir1/dir1a/removeme', '/dir2/dir2a', '/dir2/dir2a')
 
 	def test_rrmInodeGoodInput(self):
-		"""DirManager.rrmInode should remove inode and all empty parent dirs."""
-		map(self.dirMan.mkDir, self.dirPaths)
-		self.dirMan.rrmInode('/dir1/dir1a/removeme')
-		self.assertEqual(None, self.dirMan.fetchInode('/dir1/dir1a/removeme'))
-		self.assertEqual(None, self.dirMan.fetchInode('/dir1/'))
-		self.assertEqual(type(self.emptyDir), 
-			type(self.dirMan.fetchInode('/')))
+		"""LocalDirManager.rrmInode should remove inode and all empty parent dirs."""
+		map(self.dirLocalMan.mkDir, self.dirPaths)
+		self.dirLocalMan.rrmInode('/dir1/dir1a/removeme')
+		self.assertEqual(None, self.dirLocalMan.fetchInode('/dir1/dir1a/removeme'))
+		self.assertEqual(None, self.dirLocalMan.fetchInode('/dir1/'))
+		self.assertTrue(
+			isinstance(self.dirLocalMan.fetchInode('/'), fusedaap.DirInode))
+
+class Test_DirSupervisor_requestDirLease(unittest.TestCase):
+	def setUp(self):
+		self.dirSup = fusedaap.DirSupervisor()
+		self.input = ('/dir1', '/dir2/', '/dirA')
+	
+	def test_requestDirLeaseGoodInput(self):
+		"""DirSupervisor.requestDirLease should return LocalDirManager objects if the directories are not yet controlled. """
+		for f in self.input:
+			result = self.dirSup.requestDirLease(f)
+			self.assertTrue(isinstance(result, fusedaap.LocalDirManager))
+
+	def test_requestDirLeaseSecondRequest(self):
+		"""DirSupervisor.requestDirLease should throw an exception if the requested directory is already held."""
+		for f in self.input:
+			self.dirSup.requestDirLease(f)
+		
+		for f in self.input:
+			self.assertRaises(Exception, self.dirSup.requestDirLease, f)
+	
+	def test_requestDirLeaseRoot(self):
+		"""DirSupervisor.requestDirLease should throw an exception if the requested directory is the root."""
+		self.assertRaises(Exception, self.dirSup.requestDirLease, '/')
+	
+	def test_requestDirLeaseDeep(self):
+		"""DirSupervisor.requestDirLease should throw an exception if the requested directory is any deeper than one level in the tree (e.g. /dir1/dirA is not allowed)."""
+		self.assertRaises(Exception, self.dirSup.requestDirLease, '/dir1/dirA')
+		for f in self.input:
+			self.dirSup.requestDirLease(f)
+		self.assertRaises(Exception, self.dirSup.requestDirLease, '/dir1/dirA')
+
+
+
+class Test_DirSupervisor_fetchInode(unittest.TestCase):
+	def setUp(self):
+		self.dirSup = fusedaap.DirSupervisor()
+		self.input = ('/dir1', '/dir2', '/dirA')
+		self.inputL2 = ('/dirA', '/dirB')
+		self.managers = map(self.dirSup.requestDirLease, self.input)
+		for m in self.managers:
+			map(m.mkDir, self.inputL2)
+
+	def test_fetchInode_goodInput(self):
+		"""DirSupervisor.fetchInode should return DirInodes for any inodes that exist in the tree."""
+		for f in self.input:
+			node = self.dirSup.fetchInode(f)
+			self.assertTrue(isinstance(node, fusedaap.DirInode))
+			self.assertTrue(node.name == f.strip('/'))
+			for l2 in self.inputL2:
+				node = self.dirSup.fetchInode(f+l2)
+				self.assertTrue(isinstance(node, fusedaap.DirInode))
+				self.assertTrue(node.name == l2.strip('/'))
+
+		
 
 
 if __name__ == "__main__":
