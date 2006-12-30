@@ -1,22 +1,25 @@
-fusedaap-0.2.1 11 Nov 2006
-	*Disconnects from all open DAAPSessions on exit.
-	*Close Zeroconf (ends Zeroconf's threads) on exit via
+2006-11-11 Peter Sanford <psanford at users.sourceforge.net> 
+	* release 0.2.1
+	* Disconnects from all open DAAPSessions on exit.
+	* Close Zeroconf (ends Zeroconf's threads) on exit via
 	DaapFS.closeAllConnections.
-	*Added check so that once DaapFS.closeAllConnections is called, addService
+	* Added check so that once DaapFS.closeAllConnections is called, addService
 	and addHost will not add anything.
-	*Removed setDaemon on all threads.
+	* Removed setDaemon on all threads.
 
-fusedaap-0.2 24 Oct 2006
-	*Experimental: fixed Zeroconf problem of not actually broadcasting 
+2006-10-24 Peter Sanford <psanford at users.sourceforge.net>
+	* Release 0.2
+	* Experimental: fixed Zeroconf problem of not actually broadcasting 
 		any packets.
-	*Added rrmInode which will remove an Inode and any empty parent dirInode.
+	* Added rrmInode which will remove an Inode and any empty parent dirInode.
 	
-fusedaap-0.1.1 20 Oct 2006
-	*Moved directory management into separate classes with callback hooks in
+2006-10-20 Peter Sanford <psanford at users.sourceforge.net> 
+	* Release 0.1.1
+	* Moved directory management into separate classes with callback hooks in
 	DaapFS
-	*Added ability to browse by Artist or by Host
-	*Cleaned up logging a bit, '-d' flag will enable logging to fd.log
-	*Added credits to README
+	* Added ability to browse by Artist or by Host
+	* Cleaned up logging a bit, '-d' flag will enable logging to fd.log
+	* Added credits to README
 
-fusedaap-0.1 14 Oct 2006
-	*Initial release
+2006-10-14 Peter Sanford <psanford at users.sourceforge.net> 
+	* Initial release (0.1). 
