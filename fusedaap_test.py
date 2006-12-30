@@ -226,14 +226,25 @@ class Test_DirSupervisor_fetchInode(unittest.TestCase):
 
 	def test_fetchInode_goodInput(self):
 		"""DirSupervisor.fetchInode should return DirInodes for any inodes that exist in the tree."""
+		node = self.dirSup.fetchInode('/')
+		self.assertTrue(isinstance(node, fusedaap.DirInode))
+		self.assertEquals(node.name, '/')
 		for f in self.input:
 			node = self.dirSup.fetchInode(f)
 			self.assertTrue(isinstance(node, fusedaap.DirInode))
-			self.assertTrue(node.name == f.strip('/'))
+			self.assertEquals(node.name, f.strip('/'))
 			for l2 in self.inputL2:
 				node = self.dirSup.fetchInode(f+l2)
 				self.assertTrue(isinstance(node, fusedaap.DirInode))
-				self.assertTrue(node.name == l2.strip('/'))
+				self.assertEquals(node.name, l2.strip('/'))
+	
+	def test_fetchInode_badInput(self):
+		"""DirSupervisor.fetchInode should return None for any nodes not found in the tree."""
+		node = self.dirSup.fetchInode('/missingDir')
+		self.assertEquals(node, None)
+		node = self.dirSup.fetchInode('/dir1/missing')
+		self.assertEquals(node, None)
+
 
 		
 
