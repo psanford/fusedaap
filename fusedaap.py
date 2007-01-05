@@ -527,7 +527,7 @@ def _getCleanName(name):
 	"""
 	if name is None:
 		return 'none'
-	return name.encode(sys.getdefaultencoding(), "ignore")\
+	return name.encode(sys.getdefaultencoding(), "ignore").strip()\
 		.replace(' ', '_').replace(':', '_').replace('<', '_')\
 		.replace('>', '_').replace('|', '_').replace('?', '_')\
 		.replace('\\', '_').replace('@', '_').replace('/', '_')
