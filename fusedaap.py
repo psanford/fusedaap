@@ -262,7 +262,7 @@ class AdvancedDAAPTrack(daap.DAAPTrack):
 	"""An extension of daap.DAAPClient with added method 'requestRange'
 	which allows for requesting a partial file."""
 	def __init__(self, database, atom):
-		Base.__init__(self, database, atom)
+		daap.DAAPTrack.__init__(self, database, atom)
 	
 	def requestRange(self, offset, length):
 		"""Performs a request for a byte range of the file instead of the entire file.
@@ -282,7 +282,7 @@ class AdvancedDAAPTrack(daap.DAAPTrack):
 class AdvancedDAAPClient(daap.DAAPClient):
 	"""An extension of daap.DAAPClient with added method getResponse with headers that allows passing other headers to the daap server."""
 	def __init__(self):
-		Base.__init__(self)
+		daap.DAAPClient.__init__(self)
 
 
 	def _getResponseWithHeaders(self, daapclient, r, params = {}, gzip = 1, 
