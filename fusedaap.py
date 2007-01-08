@@ -122,11 +122,63 @@ class ServiceResolver(threading.Thread):
 class DaapFS(fuse.Fuse):
 	def __init__(self, *args, **kw):
 		fuse.Fuse.__init__(self, *args, **kw)
+		self.dirSup = DirSupervisor()
+	
+	def getattr(self, path):
+		inode = self.dirSup.fetchInode(path)
+		if inode is None:
+			logger.info("could not find inode: %s"%path)
+			return -errno.ENOENT
+		return inode
+
+	def readdir(self, path, offset):
+		directory = self.dirSup.fetchInode(path)
+		if directory == None:
+			directory = {} # ls will still work even after host has disconnected
+		for r in ['.', '..'] +  directory.children.keys():
+			logger.info("readdir: %s"%r)
+			if r is ' ' or r is '' or r is None:
+				logger.info("ERR readdir: read filename error: '%s'"%r)
+				pass
+			else:
+				yield fuse.Direntry(r.encode(sys.getdefaultencoding(), "ignore"))
+
+	def open(self, path, flags):
+		inode = self.dirSup.fetchInode(path)
+		if inode is None: 
+			return -errno.ENOENT
+		accmode = os.O_RDONLY | os.O_WRONLY | os.O_RDWR
+		if (flags & accmode) != os.O_RDONLY:
+			return -errno.EACCES
+	
+	def read(self, path, size, offset):
+		inode = self.dirSup.fetchInode(path)
+		if inode is None:
+			return -errno.ENOENT
+		name = inode.name
+		slen = inode.st_size
+		song = inode.song
+		if offset < slen:
+			if offset + size > slen:
+				size = slen - offset
+			req = song.requestRange(offset, size)
+			buf = req.read(size)
+		else:
+			buf = ''
+		return buf
+
+
+
+class HostManager(object):
+	"""
+	This class manages zeroconf hosts.
+	"""
+	def __init__(self):
 		self.__closed = False #if true, don't connect to any new hosts
 		self.listeners = []
 		self.allHosts = []
 		self.connectedSessions = {} # name -> DAAPSession, use to dissconnect
-		self.dirSup = DirSupervisor()
+	
 	
 	def addListener(self, listener):
 		"""Adds a listener that will be called on the following events:
@@ -135,8 +187,8 @@ class DaapFS(fuse.Fuse):
 		delHost(host): the host has disconnected
 		"""
 		self.listeners.append(listener)
-		
 
+	
 	def addHost(self, name, addr):
 		"""Trys to connect to daap server. If able to connect, get song
 		listing.
@@ -146,7 +198,7 @@ class DaapFS(fuse.Fuse):
 		stripName = _cleanStripName(name)
 		address = str(socket.inet_ntoa(addr))
 		port = daapPort
-		client = daap.DAAPClient()
+		client = AdvancedDAAPClient()
 		tracks = []
 		try:
 			client.connect (address, port)
@@ -192,53 +244,8 @@ class DaapFS(fuse.Fuse):
 			try:
 				self.allHosts.remove(name)
 			except ValueError:
-				pass
+				logger.info("value error ex. in HM.removeService for %s"%name)
 		logger.info("Service %s disconneted"%stripName)
-			
-	def getattr(self, path):
-		inode = self.dirSup.fetchInode(path)
-		if inode is None:
-			logger.info("could not find inode: %s"%path)
-			return -errno.ENOENT
-		return inode
-
-	def readdir(self, path, offset):
-		directory = self.dirSup.fetchInode(path)
-		if directory == None:
-			directory = {} # ls will still work even after host has disconnected
-		for r in ['.', '..'] +  directory.children.keys():
-			logger.info("readdir: %s"%r)
-			if r is ' ' or r is '' or r is None:
-				logger.info("ERR readdir: read filename error: '%s'"%r)
-				pass
-			else:
-				yield fuse.Direntry(r.encode(sys.getdefaultencoding(), "ignore"))
-
-	def open(self, path, flags):
-		inode = self.dirSup.fetchInode(path)
-		if inode is None: 
-			return -errno.ENOENT
-		accmode = os.O_RDONLY | os.O_WRONLY | os.O_RDWR
-		if (flags & accmode) != os.O_RDONLY:
-			return -errno.EACCES
-	
-	def read(self, path, size, offset):
-		inode = self.dirSup.fetchInode(path)
-		if inode is None:
-			return -errno.ENOENT
-		name = inode.name
-		slen = inode.st_size
-		song = inode.song
-		if offset < slen:
-			if offset + size > slen:
-				size = slen - offset
-			req = self.__getTrackResponseUsingHeaders(song,
-				headers = {'Range' : 'bytes=%d-%d'%(offset, offset+size-1)})
-			buf = req.read(size)
-		else:
-			buf = ''
-		return buf
-
 
 	def closeAllConnections(self):
 		"""Closes all open DAAPSession connections."""
@@ -251,18 +258,34 @@ class DaapFS(fuse.Fuse):
 		self.connectedSessions.clear()
 
 
-
-	def __getTrackResponseUsingHeaders(self, track, headers = {}):
-		daapclient = track.database.session.connection
-		#bump this for every track request
-		daapclient.request_id += 1
-		return self.__getResponseWithHeaders(daapclient, 
+class AdvancedDAAPTrack(daap.DAAPTrack):
+	"""An extension of daap.DAAPClient with added method 'requestRange'
+	which allows for requesting a partial file."""
+	def __init__(self, database, atom):
+		Base.__init__(self, database, atom)
+	
+	def requestRange(self, offset, length):
+		"""Performs a request for a byte range of the file instead of the entire file.
+		"""
+        # gotta bump this every track download
+		self.database.session.connection.request_id += 1
+		
+		return self.database.session.connection._getResponseWithHeaders(
 			"/databases/%s/items/%s.%s"% \
-			(track.database.id, track.id, track.type),
-			{'session-id':track.database.session.sessionid}, gzip = 0,
-			headers = headers)
+			(self.database.id, self.id, self.type),
+			{'session-id':self.database.session.sessionid}, gzip = 0,
+			headers = {'Range' : 'bytes=%d-%d'%(offset, offset+length-1)})
 
-	def __getResponseWithHeaders(self, daapclient, r, params = {}, gzip = 1, 
+
+	
+
+class AdvancedDAAPClient(daap.DAAPClient):
+	"""An extension of daap.DAAPClient with added method getResponse with headers that allows passing other headers to the daap server."""
+	def __init__(self):
+		Base.__init__(self)
+
+
+	def _getResponseWithHeaders(self, daapclient, r, params = {}, gzip = 1, 
 			headers={}):
 		"""
 		Like daap.DAAPClient._get_response() but with the ability to add other http headers.
@@ -294,6 +317,8 @@ class DaapFS(fuse.Fuse):
 			logger.error("Error sending request : %s"%e);
 		response    = daapclient.socket.getresponse()
 		return response
+	
+
 
 class DirSupervisor(object):
 	"""
@@ -513,6 +538,7 @@ class ArtistDirHandler(object):
 			sngList = self.hosts[host] # all songs for host
 			map(self.dirMan.rrmInode, sngList)
 
+
 		
 def _cleanStripName(name):
 	"""Returns a filesystem friendly name for a host."""
@@ -539,12 +565,13 @@ def main():
 	server.fuse_args.setmod('foreground')
 	server.parse(errex=1)
 	server.multithreaded = True
+	hostMan = HostManager()
 	hdh = HostDirHandler(server.dirSup.requestDirLease("/hosts"))
-	server.addListener(hdh)
+	hostMan.addListener(hdh)
 	adh = ArtistDirHandler(server.dirSup.requestDirLease("/artists"))
-	server.addListener(adh)
+	hostMan.addListener(adh)
 	r = Zeroconf.Zeroconf()
-	r.addServiceListener(daapZConfType, server)
+	r.addServiceListener(daapZConfType, hostMan)
 	try:
 		server.main() # main loop
 	except:
@@ -554,7 +581,7 @@ def main():
 	logger.info("closing zeroconf in main")
 	print "Disconnecting from services . . ."
 	r.close() # close zeroconf first so no new servers are connected to
-	server.closeAllConnections() 
+	hostMan.closeAllConnections() 
 	
 
 
