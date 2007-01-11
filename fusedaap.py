@@ -158,6 +158,7 @@ class DaapFS(fuse.Fuse):
 		name = inode.name
 		slen = inode.st_size
 		song = inode.song
+
 		if offset < slen:
 			if offset + size > slen:
 				size = slen - offset
@@ -180,8 +181,8 @@ class HostManager(object):
 		self.connectedSessions = {} # name -> DAAPSession, use to dissconnect
 	
 	
-	def addListener(self, listener):
-		"""Adds a listener that will be called on the following events:
+	def addHandler(self, listener):
+		"""Adds a handler that will be called on the following events:
 		
 		newHost(host, songs): a new hostname with a list of track objects
 		delHost(host): the host has disconnected
@@ -271,7 +272,7 @@ class AdvancedDAAPTrack(daap.DAAPTrack):
 		self.database.session.connection.request_id += 1
 		
 		return self.database.session.connection._getResponseWithHeaders(
-			"/databases/%s/items/%s.%s"% \
+			self.database.session.connection, "/databases/%s/items/%s.%s"% \
 			(self.database.id, self.id, self.type),
 			{'session-id':self.database.session.sessionid}, gzip = 0,
 			headers = {'Range' : 'bytes=%d-%d'%(offset, offset+length-1)})
@@ -516,6 +517,9 @@ class ArtistDirHandler(object):
 				(_getCleanName(song.artist), _getCleanName(song.album))
 			putDir = self.dirMan.mkDir(directory)
 			if not putDir.children.has_key(fileName):
+				if not isinstance(song, AdvancedDAAPTrack): 
+					#make sure song is an AdvancedDAAPTrack
+					song = AdvancedDAAPTrack(song.database, song.atom) 
 				songNode = SongInode(fileName, song.size, song=song)
 				putDir.addChild(songNode)
 				logger.info("art: Add %s/%s/%s"%\
@@ -567,9 +571,9 @@ def main():
 	server.multithreaded = True
 	hostMan = HostManager()
 	hdh = HostDirHandler(server.dirSup.requestDirLease("/hosts"))
-	hostMan.addListener(hdh)
+	hostMan.addHandler(hdh)
 	adh = ArtistDirHandler(server.dirSup.requestDirLease("/artists"))
-	hostMan.addListener(adh)
+	hostMan.addHandler(adh)
 	r = Zeroconf.Zeroconf()
 	r.addServiceListener(daapZConfType, hostMan)
 	try:
