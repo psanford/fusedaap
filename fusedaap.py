@@ -381,7 +381,7 @@ class LocalDirManager(object):
 		curdir = self.__fsRoot
 		folders = path.strip('/').split('/')
 		try:
-			self.lock.aquire()
+			self.lock.acquire()
 			for f in folders:
 				curdir = curdir.children[f]
 			self.lock.release()
@@ -402,7 +402,7 @@ class LocalDirManager(object):
 		"""
 		curdir = self.__fsRoot
 		folders = path.strip('/').split('/')
-		self.lock.aquire()
+		self.lock.acquire()
 		for f in folders:
 			if curdir.children.has_key(f):
 				curdir = curdir.children[f]
@@ -433,7 +433,7 @@ class LocalDirManager(object):
 		folders = path.strip('/').split('/')
 		inodeToDel = folders.pop()
 		try:
-			self.lock.aquire()
+			self.lock.acquire()
 			for f in folders:
 				curdir = curdir.children[f]
 			curdir.removeChild(inodeToDel)
@@ -468,7 +468,7 @@ class LocalDirManager(object):
 				raise e
 			curdir = self.__fsRoot
 			nextFolder = folders.pop(0)
-			self.lock.aquire()
+			self.lock.acquire()
 			result = self.rrmInode(path, curdir)
 			self.lock.release()
 			return result
@@ -503,7 +503,7 @@ class HostDirHandler(object):
 					_getCleanName(song.album)))
 			if not putDir.children.has_key(fileName):
 				songNode = SongInode(fileName, song.size, song=song)
-				self.dirMan.lock.aquire()
+				self.dirMan.lock.acquire()
 				putDir.addChild(songNode)
 				self.dirMan.lock.release()
 				logger.info("Add %s/%s/%s"%(host, putDir.name, songNode.name))
@@ -538,7 +538,7 @@ class ArtistDirHandler(object):
 					#make sure song is an AdvancedDAAPTrack
 					song = AdvancedDAAPTrack(song.database, song.atom) 
 				songNode = SongInode(fileName, song.size, song=song)
-				self.dirMan.lock.aquire()
+				self.dirMan.lock.acquire()
 				putDir.addChild(songNode)
 				self.dirMan.lock.release()
 				logger.info("art: Add %s/%s/%s"%\
@@ -550,7 +550,7 @@ class ArtistDirHandler(object):
 				fileName = _getCleanName(fileName)
 				if not putDir.children.has_key(fileName):
 					songNode = SongInode(fileName, song.size, song=song)
-					self.dirMan.lock.aquire()
+					self.dirMan.lock.acquire()
 					putDir.addChild(songNode)
 					self.dirMan.lock.release()
 					logger.info("Add %s/%s/%s"%\
