@@ -402,12 +402,12 @@ class LocalDirManager(object):
 		"""
 		curdir = self.__fsRoot
 		folders = path.strip('/').split('/')
-		lock.aquire()
+		self.lock.aquire()
 		for f in folders:
 			if curdir.children.has_key(f):
 				curdir = curdir.children[f]
 				if not isinstance(curdir, DirInode):
-					lock.release()
+					self.lock.release()
 					e = OSError("File %s is not a directory" % curdir)
 					e.errno = errno.ENOENT
 					raise e
@@ -415,7 +415,7 @@ class LocalDirManager(object):
 				newdir = DirInode(f)
 				curdir.addChild(newdir)
 				curdir = newdir
-		lock.release()
+		self.lock.release()
 		return curdir
 	
 	
