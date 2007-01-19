@@ -231,7 +231,6 @@ class HostManager(object):
 	def removeService(self, zeroconf, type, name):
 		"""Listener method called when zeroconf service disconnects."""
 		stripName = _cleanStripName(name)
-		stripName = _cleanStripName(name)
 		if self.connectedSessions.has_key(name):
 			try: 
 				self.connectedSessesions[name].logout()
