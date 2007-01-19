@@ -567,7 +567,10 @@ class ArtistDirHandler(object):
 def _cleanStripName(name):
 	"""Returns a filesystem friendly name for a host."""
 	cleanName = _getCleanName(name)
-	return cleanName[:cleanName.index('.'+daapZConfType)]
+	cleanName = cleanName[:cleanName.index('.'+daapZConfType)]
+	if cleanName is None or cleanName == '':
+		cleanName = 'no_name'
+	return cleanName
 	
 def _getCleanName(name):
 	"""Returns a filesystem friendly string.
