@@ -380,14 +380,14 @@ class LocalDirManager(object):
 		curdir = self.__fsRoot
 		folders = path.strip('/').split('/')
 		try:
-			self.lock.acquire()
+			#self.lock.acquire()
 			for f in folders:
 				curdir = curdir.children[f]
-			self.lock.release()
+			#self.lock.release()
 			return curdir
 		except:
-			if self.lock.locked():
-				self.lock.release()
+			#if self.lock.locked():
+			#	self.lock.release()
 			return None
 
 	def mkDir(self, path):
