@@ -32,7 +32,7 @@ The following packages are required in order to use fusedaap.
 -pythondaap module <http://jerakeen.org/code/PythonDaap/>:
 	-Pythondaap should also be built from the svn version (versions <=0.4 will not work with fusedaap). Get the latest version using the following command:
 
-		svn co http://jerakeen.org/svn/tomi/Projects/PythonDaap/ PythonDaap
+		svn co https://jerakeen.org/svn/tomi/Projects/PythonDaap/ PythonDaap
 	
 	follow the instructions in the README file included with PythonDaap to build and install it.
 
