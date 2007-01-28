@@ -201,18 +201,22 @@ class HostManager(object):
 		port = daapPort
 		client = AdvancedDAAPClient()
 		tracks = []
+		advTracks = []
 		try:
 			client.connect (address, port)
 			session = client.login() 
 			database = session.library()
 			tracks = database.tracks()
+			for song in tracks:
+				advTracks.append(AdvancedDAAPTrack(song.database, song.atom))
+			
 		except Exception, e:
 			logger.info("Could not connect to %s: %s"%(stripName, e))
-		if len(tracks) > 0:
+		if len(advTracks) > 0:
 			logger.info("!!!\n!!! :) !!! Connected to %s\n!!!"%stripName)
 			self.connectedSessions[name] = session
 			for listener in self.listeners:
-				listener.newHost(stripName, tracks)
+				listener.newHost(stripName, advTracks)
 		else:
 			try:
 				session.logout() #make sure we don't keep an open connection
@@ -533,9 +537,6 @@ class ArtistDirHandler(object):
 				(_getCleanName(song.artist), _getCleanName(song.album))
 			putDir = self.dirMan.mkDir(directory)
 			if not putDir.children.has_key(fileName):
-				if not isinstance(song, AdvancedDAAPTrack): 
-					#make sure song is an AdvancedDAAPTrack
-					song = AdvancedDAAPTrack(song.database, song.atom) 
 				songNode = SongInode(fileName, song.size, song=song)
 				self.dirMan.lock.acquire()
 				putDir.addChild(songNode)
