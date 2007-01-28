@@ -30,7 +30,7 @@ The following packages are required in order to use fusedaap.
 	At the time of writing, the python-fuse packages in debian sid and Ubuntu Breezy are old and do not work with fusedaap. I have not tested on any other distributions. Therefore you should use the latest cvs python-FUSE bindings. The easiest way is to download the development snapshot from <http://fuse.sourceforge.net/wiki/index.php/FusePython>.
 	
 -pythondaap module <http://jerakeen.org/code/PythonDaap/>:
-	-Pythondaap should also be built from the svn version (versions >=0.4 will not work with fusedaap). Get the latest version using the following command:
+	-Pythondaap should also be built from the svn version (versions <=0.4 will not work with fusedaap). Get the latest version using the following command:
 
 		svn co http://jerakeen.org/svn/tomi/Projects/PythonDaap/ PythonDaap
 	
