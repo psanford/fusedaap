@@ -39,6 +39,7 @@ if not hasattr(fuse, '__version__'):
 	raise RuntimeError, \
 		"your fuse-py doesn't know of fuse.__version__, probably it's too old."
 
+
 daapZConfType = "_daap._tcp.local."
 daapPort = 3689
 
@@ -52,6 +53,35 @@ def enableLogging():
 	logger.addHandler(hdlr)
 	logger.setLevel(logging.DEBUG)
 
+
+def inject_requestRange_into_DAAPTrack():
+	"""This function does something a bit scary... It adds the method
+		requestRange() to daap.DAAPTrack class at runtime. 
+		
+		I resisted this solution for a long time before I finally gave in.
+		I was subclassing DAAPTrack, but every DAAPTrack returned by a
+		database had to be 'converted' to an AdvancedDAAPTrack. This seemed
+		to be fairly silly given that I could simply add requestRange at 
+		runtime. 
+	"""
+
+	def requestRange(self, offset, length):
+		"""Performs a request for a byte range of the file instead of the entire file.
+		"""
+        # gotta bump this every track download
+		self.database.session.connection.request_id += 1
+		
+		return self.database.session.connection._getResponseWithHeaders(
+			self.database.session.connection, "/databases/%s/items/%s.%s"% \
+			(self.database.id, self.id, self.type),
+			{'session-id':self.database.session.sessionid}, gzip = 0,
+			headers = {'Range' : 'bytes=%d-%d'%(offset, offset+length-1)})
+	
+	daap.DAAPTrack.requestRange = requestRange
+
+
+## This does something a litte bit scary, read comment in function
+inject_requestRange_into_DAAPTrack()
 
 
 class Inode(fuse.Stat):
@@ -201,22 +231,18 @@ class HostManager(object):
 		port = daapPort
 		client = AdvancedDAAPClient()
 		tracks = []
-		advTracks = []
 		try:
 			client.connect (address, port)
 			session = client.login() 
 			database = session.library()
 			tracks = database.tracks()
-			for song in tracks:
-				advTracks.append(AdvancedDAAPTrack(song.database, song.atom))
-			
 		except Exception, e:
 			logger.info("Could not connect to %s: %s"%(stripName, e))
-		if len(advTracks) > 0:
+		if len(tracks) > 0:
 			logger.info("!!!\n!!! :) !!! Connected to %s\n!!!"%stripName)
 			self.connectedSessions[name] = session
 			for listener in self.listeners:
-				listener.newHost(stripName, advTracks)
+				listener.newHost(stripName, tracks)
 		else:
 			try:
 				session.logout() #make sure we don't keep an open connection
@@ -262,26 +288,6 @@ class HostManager(object):
 		self.connectedSessions.clear()
 
 
-class AdvancedDAAPTrack(daap.DAAPTrack):
-	"""An extension of daap.DAAPClient with added method 'requestRange'
-	which allows for requesting a partial file."""
-	def __init__(self, database, atom):
-		daap.DAAPTrack.__init__(self, database, atom)
-	
-	def requestRange(self, offset, length):
-		"""Performs a request for a byte range of the file instead of the entire file.
-		"""
-        # gotta bump this every track download
-		self.database.session.connection.request_id += 1
-		
-		return self.database.session.connection._getResponseWithHeaders(
-			self.database.session.connection, "/databases/%s/items/%s.%s"% \
-			(self.database.id, self.id, self.type),
-			{'session-id':self.database.session.sessionid}, gzip = 0,
-			headers = {'Range' : 'bytes=%d-%d'%(offset, offset+length-1)})
-
-
-	
 
 class AdvancedDAAPClient(daap.DAAPClient):
 	"""An extension of daap.DAAPClient with added method getResponse with headers that allows passing other headers to the daap server."""
