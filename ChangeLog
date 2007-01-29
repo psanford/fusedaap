@@ -1,3 +1,10 @@
+2007-01-28 Peter Sanford <psanford at users.sourceforge.net>
+	* release 0.3.1
+	* Fixed a problem that was breaking reads in the host dir.
+	* Removed AdvancedDAAPTrack class.
+	* Now injecting the method requestRange directly into the daap.DAAPTrack
+		at runtime. 
+
 2007-01-23 Peter Sanford <psanford at users.sourceforge.net>
 	* release 0.3
 	* Some major refactoring of code for more logical encapsulation.
