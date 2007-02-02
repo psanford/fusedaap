@@ -504,8 +504,13 @@ class HostDirHandler(object):
 
 	def newHost(self, host, songs):
 		for song in songs: 
-			fileName = "%s-%s-%s.%s" % \
-				(song.artist, song.album, song.name, song.type)
+			trackNumber = song.atom.getAtom('astn') #get track-number
+			if trackNumber is not None:
+				fileName = "%s-%s-%02d-%s.%s" % (song.artist, song.album,\
+				int(trackNumber), song.name, song.type)
+			else:
+				fileName = "%s-%s-%s.%s" % (song.artist, song.album,\
+				song.name, song.type)
 			fileName = _getCleanName(fileName)
 			putDir = self.dirMan.mkDir("/%s/%s/%s"% \
 				(host, _getCleanName(song.artist),
@@ -537,7 +542,12 @@ class ArtistDirHandler(object):
 	def newHost(self, host, songs):
 		sngList = []
 		for song in songs: 
-			fileName = "%s.%s"%(song.name, song.type)
+			trackNumber = song.atom.getAtom('astn')
+			if trackNumber is not None:
+				fileName = "%02d-%s.%s"%(int(trackNumber), song.name, song.type)
+			else:
+				fileName = "%s.%s"%(song.name, song.type)
+
 			fileName = _getCleanName(fileName)
 			directory = "/%s/%s"% \
 				(_getCleanName(song.artist), _getCleanName(song.album))
