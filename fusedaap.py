@@ -107,12 +107,17 @@ class DirInode(Inode):
 	def __init__(self, name, permissions=stat.S_IFDIR | 0555):
 		Inode.__init__(self, name, permissions)
 		self.children = {}
+		self.lock = threading.Lock();
 	def addChild(self, inode):
 		"""Adds Inode to this directory."""
+		self.lock.acquire()
 		self.children[inode.name] = inode
+		self.lock.release()
 	def removeChild(self, name):
 		"""Removes Inode from this directory."""
+		self.lock.acquire()
 		del self.children[name]
+		self.lock.release()
 
 
 class SongInode(Inode):
@@ -377,7 +382,6 @@ class DirSupervisor(object):
 class LocalDirManager(object):
 	def __init__(self, localDirRoot):
 		self.__fsRoot = localDirRoot
-		self.lock = threading.Lock()
 
 	def fetchInode(self, path):
 		"""Returns the Inode for the given path, or None if not found.
@@ -390,14 +394,10 @@ class LocalDirManager(object):
 		curdir = self.__fsRoot
 		folders = path.strip('/').split('/')
 		try:
-			#self.lock.acquire()
 			for f in folders:
 				curdir = curdir.children[f]
-			#self.lock.release()
 			return curdir
 		except:
-			#if self.lock.locked():
-			#	self.lock.release()
 			return None
 
 	def mkDir(self, path):
@@ -411,12 +411,10 @@ class LocalDirManager(object):
 		"""
 		curdir = self.__fsRoot
 		folders = path.strip('/').split('/')
-		self.lock.acquire()
 		for f in folders:
 			if curdir.children.has_key(f):
 				curdir = curdir.children[f]
 				if not isinstance(curdir, DirInode):
-					self.lock.release()
 					e = OSError("File %s is not a directory" % curdir)
 					e.errno = errno.ENOENT
 					raise e
@@ -424,7 +422,6 @@ class LocalDirManager(object):
 				newdir = DirInode(f)
 				curdir.addChild(newdir)
 				curdir = newdir
-		self.lock.release()
 		return curdir
 	
 	
@@ -442,14 +439,10 @@ class LocalDirManager(object):
 		folders = path.strip('/').split('/')
 		inodeToDel = folders.pop()
 		try:
-			self.lock.acquire()
 			for f in folders:
 				curdir = curdir.children[f]
 			curdir.removeChild(inodeToDel)
-			self.lock.release()
 		except:
-			if self.lock.locked():
-				self.lock.release()
 			return None
 
 	def rrmInode(self, path, rootNode=None):
@@ -477,9 +470,7 @@ class LocalDirManager(object):
 				raise e
 			curdir = self.__fsRoot
 			nextFolder = folders.pop(0)
-			self.lock.acquire()
 			result = self.rrmInode(path, curdir)
-			self.lock.release()
 			return result
 		else:
 			curdir = rootNode
@@ -490,13 +481,15 @@ class LocalDirManager(object):
 				if self.rrmInode('/'.join(folders), 
 				curdir.children[nextFolder]):
 					curdir.removeChild(nextFolder)
+					curdir.lock.acquire()
 					if len(curdir.children) == 0:
+						curdir.lock.release()
 						return True
 					else:
+						curdir.lock.release()
 						return False
 				else:
 					return False
-
 class HostDirHandler(object):
 	"""Manages files under /hosts dir."""
 	def __init__(self, directoryManager):
@@ -517,9 +510,7 @@ class HostDirHandler(object):
 					_getCleanName(song.album)))
 			if not putDir.children.has_key(fileName):
 				songNode = SongInode(fileName, song.size, song=song)
-				self.dirMan.lock.acquire()
 				putDir.addChild(songNode)
-				self.dirMan.lock.release()
 				logger.info("Add %s/%s/%s"%(host, putDir.name, songNode.name))
 	def delHost(self, host):
 		self.dirMan.rrmInode("/%s"%host)
@@ -554,9 +545,7 @@ class ArtistDirHandler(object):
 			putDir = self.dirMan.mkDir(directory)
 			if not putDir.children.has_key(fileName):
 				songNode = SongInode(fileName, song.size, song=song)
-				self.dirMan.lock.acquire()
 				putDir.addChild(songNode)
-				self.dirMan.lock.release()
 				logger.info("art: Add %s/%s/%s"%\
 					(host, putDir.name, songNode.name))
 				sngList.append("%s/%s"%(directory, fileName))
@@ -566,9 +555,7 @@ class ArtistDirHandler(object):
 				fileName = _getCleanName(fileName)
 				if not putDir.children.has_key(fileName):
 					songNode = SongInode(fileName, song.size, song=song)
-					self.dirMan.lock.acquire()
 					putDir.addChild(songNode)
-					self.dirMan.lock.release()
 					logger.info("Add %s/%s/%s"%\
 						(host, putDir.name, songNode.name))
 					sngList.append("%s/%s"%(directory, fileName))
