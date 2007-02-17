@@ -587,7 +587,8 @@ def _getCleanName(name):
 	return name.encode(sys.getdefaultencoding(), "ignore").strip()\
 		.replace(' ', '_').replace(':', '_').replace('<', '_')\
 		.replace('>', '_').replace('|', '_').replace('?', '_')\
-		.replace('\\', '_').replace('@', '_').replace('/', '_')
+		.replace('\\', '_').replace('@', '_').replace('/', '_')\
+		.replace('!', '_')
 
 
 def main():
